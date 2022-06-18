@@ -85,20 +85,25 @@ xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
 
 # slideLayouts/slideLayout1.xml
         (TODO)
+
+
+# slides/slide1.xml
+# slides/slide2.xml
+# slides/slide3.xml
 '''
 
 def fix_theme_font(work_path: Path, major_font: str, minor_font: str) -> None:
     theme_path = work_path / 'ppt' / 'theme' / 'theme1.xml'
-    # TODO: change majorFont and minorFont in fontScheme
+    # TODO: themeN.xml: change majorFont and minorFont in fontScheme
 
 
-def normalize_master_fonts(work_path) -> None:
+def normalize_master_fonts(work_path: Path, bullet_font: str = "+mn-lt") -> None:
     # TODO: presentation.xml: change defRPr typefaces in defaultTextStyle
     # TODO: slideMasterN.xml: change buFont typeface
     # TODO: slideMasterN.xml: change defRPr typefaces in titleStyle and bodyStyle
     pass
 
 
-def normalize_slide_fonts(work_path) -> None:
+def normalize_slide_fonts(work_path: Path) -> None:
     # TODO: ...
     pass
