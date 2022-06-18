@@ -2,12 +2,12 @@ import zipfile
 from pathlib import Path
 
 
-def extract_pptx(src_file: Path, dst_dir: Path):
+def extract_pptx(src_file: Path, dst_dir: Path) -> None:
     with zipfile.ZipFile(src_file) as src:
         src.extractall(dst_dir)
 
 
-def build_pptx(src_dir: Path, dst_file: Path):
+def build_pptx(src_dir: Path, dst_file: Path) -> None:
     dir_queue = []
     with zipfile.ZipFile(dst_file, 'w', compression=zipfile.ZIP_DEFLATED) as dst:
         dir_queue.append(src_dir)
