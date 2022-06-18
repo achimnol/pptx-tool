@@ -8,7 +8,7 @@ def extract_pptx(src_file: Path, dst_dir: Path) -> None:
 
 
 def build_pptx(src_dir: Path, dst_file: Path) -> None:
-    dir_queue = []
+    dir_queue: list[Path] = []
     with zipfile.ZipFile(dst_file, 'w', compression=zipfile.ZIP_DEFLATED) as dst:
         dir_queue.append(src_dir)
         while dir_queue:
@@ -17,4 +17,6 @@ def build_pptx(src_dir: Path, dst_file: Path) -> None:
                 if p.is_dir():
                     dir_queue.append(p)
                 else:
+                    if p.parent.name == 'themes' and p.name != 'theme1.xml':
+                        continue
                     dst.write(p, arcname=str(p.relative_to(src_dir)))
