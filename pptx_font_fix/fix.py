@@ -119,7 +119,7 @@ def normalize_master_fonts(
             _update_paragraph_style(style_prop_elem)
         for bullet_font_elem in root_elem.xpath('//p:bodyStyle//a:buFont', namespaces=xmlns):
             bullet_font_elem.clear()
-            bullet_font_elem.set('typeface', "+mn-lt")
+            bullet_font_elem.set('typeface', theme_info.minor_font_symbol)
 
         root_elem.write(master_path)
 
