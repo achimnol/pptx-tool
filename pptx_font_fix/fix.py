@@ -83,13 +83,16 @@ def fix_theme_font(
         root_elem.write(theme_path)
 
 
-def _update_paragraph_style(style_elem: etree.Element, scheme_prefix: str = "mn") -> None:
+def _update_paragraph_style(style_elem: etree.Element, theme_info: Theme, scheme_prefix: str = "mn") -> None:
     for elem in style_elem.getchildren():
         elem_name = local_tag(elem)
         match elem_name:
-            case "latin" | "ea" | "cs" | "sym":
+            case "latin" | "ea" | "cs":
                 elem.clear()
                 elem.set('typeface', f"+{scheme_prefix}-{style_typeface_map[elem_name]}")
+            case "sym":
+                elem.clear()
+                elem.set('typeface', theme_info.minor_font_symbol if scheme_prefix == "mn" else theme_info.major_font_symbol)
             case "font":
                 elem.getparent().remove(elem)
             case _:
@@ -103,20 +106,20 @@ def normalize_master_fonts(
     main_path = work_path / 'ppt' / 'presentation.xml'
     root_elem = etree.parse(main_path)
     for style_prop_elem in root_elem.xpath('//p:defaultTextStyle//a:defRPr', namespaces=xmlns):
-        _update_paragraph_style(style_prop_elem)
+        _update_paragraph_style(style_prop_elem, theme_info)
 
     master_dir = work_path / 'ppt' / 'slideMasters'
     for master_path in master_dir.glob('slideMaster*.xml'):
         root_elem = etree.parse(master_path)
         for style_prop_elem in root_elem.xpath('//p:titleStyle//a:defRPr', namespaces=xmlns):
-            _update_paragraph_style(style_prop_elem, scheme_prefix="mj")
+            _update_paragraph_style(style_prop_elem, theme_info, scheme_prefix="mj")
             if theme_info.title_bold:
                 style_prop_elem.set('b', '1')
             else:
                 style_prop_elem.attrib.pop('b', None)
         # TODO: implement overriding first-level body paragraph style
         for style_prop_elem in root_elem.xpath('//p:bodyStyle//a:defRPr', namespaces=xmlns):
-            _update_paragraph_style(style_prop_elem)
+            _update_paragraph_style(style_prop_elem, theme_info)
         for bullet_font_elem in root_elem.xpath('//p:bodyStyle//a:buFont', namespaces=xmlns):
             bullet_font_elem.clear()
             bullet_font_elem.set('typeface', theme_info.minor_font_symbol)
@@ -135,17 +138,17 @@ def _normalize_slide_font(root_elem: etree.ElementTree, theme_info: Theme, log_p
             print(f"{log_prefix}: template element ({ph_elems[0].get('type')})")
             # TODO: implement overriding first-level body paragraph style
             for style_prop_elem in sp_elem.xpath('p:txBody//a:defRPr', namespaces=xmlns):
-                _update_paragraph_style(style_prop_elem, scheme_prefix=scheme_prefix)
+                _update_paragraph_style(style_prop_elem, theme_info, scheme_prefix=scheme_prefix)
             for style_prop_elem in sp_elem.xpath('p:txBody//a:rPr', namespaces=xmlns):
-                _update_paragraph_style(style_prop_elem, scheme_prefix=scheme_prefix)
+                _update_paragraph_style(style_prop_elem, theme_info, scheme_prefix=scheme_prefix)
             for style_prop_elem in sp_elem.xpath('p:txBody//a:endParaRPr', namespaces=xmlns):
-                _update_paragraph_style(style_prop_elem, scheme_prefix=scheme_prefix)
+                _update_paragraph_style(style_prop_elem, theme_info, scheme_prefix=scheme_prefix)
         else:
             print(f"{log_prefix}: normal element")
             for style_prop_elem in sp_elem.xpath('p:txBody//a:rPr', namespaces=xmlns):
-                _update_paragraph_style(style_prop_elem, scheme_prefix="mn")
+                _update_paragraph_style(style_prop_elem, theme_info, scheme_prefix="mn")
             for style_prop_elem in sp_elem.xpath('p:txBody//a:endParaRPr', namespaces=xmlns):
-                _update_paragraph_style(style_prop_elem, scheme_prefix="mn")
+                _update_paragraph_style(style_prop_elem, theme_info, scheme_prefix="mn")
 
 
 
