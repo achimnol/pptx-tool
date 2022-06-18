@@ -11,7 +11,7 @@ If you are new to `pyenv` and on macOS, install it using [`homebrew`](https://br
 
 ```console
 $ poetry install
-$ poetry run --theme=themes/pretendard.json pptx-fix-font input.pptx output.pptx
+$ poetry run --theme=themes/pretendard.json pptx-font-fix input.pptx output.pptx
 ```
 
 Check out the `themes` directory for more theme definitions.
