@@ -1,6 +1,8 @@
 # pptx-font-fix
 A script to fix up pptx font configurations considering Latin/EastAsian/ComplexScript/Symbol typeface mappings
 
+This script package only relies on `lxml`, a popular XML parsing &amp; manipulation library for Python, and Python 3.10.
+It does not require the PowerPoint app to be installed and can be run on any operating system where Python and poetry runs.
 
 ## Getting Started
 
