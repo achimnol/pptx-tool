@@ -1,11 +1,10 @@
+from typing import Final
 from pathlib import Path
+
+from lxml import etree
 
 '''
 Some sample XML snippets!
-
-xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
-xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
-xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
 
 # theme/theme1.xml
         <a:fontScheme name="Pretendard">
@@ -92,12 +91,84 @@ xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
 # slides/slide3.xml
 '''
 
-def fix_theme_font(work_path: Path, major_font: str, minor_font: str) -> None:
-    theme_path = work_path / 'ppt' / 'theme' / 'theme1.xml'
-    # TODO: themeN.xml: change majorFont and minorFont in fontScheme
+xmlns: Final = {
+    "a": "http://schemas.openxmlformats.org/drawingml/2006/main",
+    "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+    "p": "http://schemas.openxmlformats.org/presentationml/2006/main",
+}
 
 
-def normalize_master_fonts(work_path: Path, bullet_font: str = "+mn-lt") -> None:
+def local_tag(tag_name) -> str:
+    """Strip out the namespace from the element tag name."""
+    return etree.QName(tag_name).localname
+
+
+def _print_font_scheme(font_scheme: etree.Element, indent: str = "") -> None:
+    for font_elem in font_scheme.getchildren():
+        print(f"{indent}{local_tag(font_elem.tag)}:")
+        for prev_typeface in font_elem.getchildren():
+            prev_script_name = local_tag(prev_typeface.tag)
+            match prev_script_name:
+                case "font":
+                    print(
+                        f"{indent}  "
+                        f"{prev_script_name} ({prev_typeface.get('script')}): "
+                        f"{prev_typeface.get('typeface')}"
+                    )
+                case _:
+                    print(
+                        f"{indent}  "
+                        f"{prev_script_name}: {prev_typeface.get('typeface')}"
+                    )
+
+def fix_theme_font(
+    work_path: Path,
+    major_font: str,
+    minor_font: str,
+) -> None:
+    theme_dir = work_path / 'ppt' / 'theme'
+    for theme_path in theme_dir.glob('theme*.xml'):
+        root_elem = etree.parse(theme_path)
+        font_scheme_elem = root_elem.xpath('//a:fontScheme', namespaces=xmlns)[0]
+
+        # Print out current theme font configuration
+        print(f"Current font scheme: (name={font_scheme_elem.get('name')!r})")
+        _print_font_scheme(font_scheme_elem, indent="  ")
+
+        # Replace the theme font
+        major_font_elem = etree.Element(etree.QName(xmlns['a'], 'majorFont'))
+        major_font_elem.append(etree.Element(etree.QName(xmlns['a'], 'latin'), attrib={'typeface': major_font}))
+        major_font_elem.append(etree.Element(etree.QName(xmlns['a'], 'ea'), attrib={'typeface': major_font}))
+        major_font_elem.append(etree.Element(etree.QName(xmlns['a'], 'cs'), attrib={'typeface': major_font}))
+        major_font_elem.append(etree.Element(etree.QName(xmlns['a'], 'sym'), attrib={'typeface': major_font}))
+        major_font_elem.append(etree.Element(etree.QName(xmlns['a'], 'font'), attrib={'script': 'Hang', 'typeface': major_font}))
+        minor_font_elem = etree.Element(etree.QName(xmlns['a'], 'minorFont'))
+        minor_font_elem.append(etree.Element(etree.QName(xmlns['a'], 'latin'), attrib={'typeface': minor_font}))
+        minor_font_elem.append(etree.Element(etree.QName(xmlns['a'], 'ea'), attrib={'typeface': minor_font}))
+        minor_font_elem.append(etree.Element(etree.QName(xmlns['a'], 'cs'), attrib={'typeface': minor_font}))
+        minor_font_elem.append(etree.Element(etree.QName(xmlns['a'], 'sym'), attrib={'typeface': minor_font}))
+        minor_font_elem.append(etree.Element(etree.QName(xmlns['a'], 'font'), attrib={'script': 'Hang', 'typeface': minor_font}))
+        font_scheme_attrib = {**font_scheme_elem.attrib}
+        font_scheme_elem.clear()
+        for k, v in font_scheme_attrib.items():
+            font_scheme_elem.set(k, v)
+        font_scheme_elem.append(major_font_elem)
+        font_scheme_elem.append(minor_font_elem)
+
+        print(f"New font scheme: (name={font_scheme_elem.get('name')!r})")
+        _print_font_scheme(font_scheme_elem, indent="  ")
+
+        # Write back
+        root_elem.write(theme_path)
+
+
+def normalize_master_fonts(
+    work_path: Path,
+    bullet_font: str = "+mn-lt",
+    *,
+    major_bold: bool = True,
+    minor_bold: bool = False,
+) -> None:
     # TODO: presentation.xml: change defRPr typefaces in defaultTextStyle
     # TODO: slideMasterN.xml: change buFont typeface
     # TODO: slideMasterN.xml: change defRPr typefaces in titleStyle and bodyStyle
