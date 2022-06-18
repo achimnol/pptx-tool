@@ -1,3 +1,4 @@
+import secrets
 from typing import Final
 from pathlib import Path
 
@@ -5,7 +6,6 @@ from lxml import etree
 
 '''
 Some sample XML snippets!
-
 # theme/theme1.xml
         <a:fontScheme name="Pretendard">
             <a:majorFont>
@@ -97,6 +97,13 @@ xmlns: Final = {
     "p": "http://schemas.openxmlformats.org/presentationml/2006/main",
 }
 
+style_typeface_map: Final = {
+    'latin': 'lt',
+    'ea': 'ea',
+    'cs': 'cs',
+    'sym': 'sym',
+}
+
 
 def local_tag(tag_name) -> str:
     """Strip out the namespace from the element tag name."""
@@ -162,19 +169,91 @@ def fix_theme_font(
         root_elem.write(theme_path)
 
 
+def _update_paragraph_style(style_elem: etree.Element, scheme_prefix: str = "mn") -> None:
+    for elem in style_elem.getchildren():
+        elem_name = local_tag(elem)
+        match elem_name:
+            case "latin" | "ea" | "cs" | "sym":
+                elem.clear()
+                elem.set('typeface', f"+{scheme_prefix}-{style_typeface_map[elem_name]}")
+            case "font":
+                elem.getparent().remove(elem)
+            case _:
+                pass
+
+
 def normalize_master_fonts(
     work_path: Path,
-    bullet_font: str = "+mn-lt",
+    bullet_font: str = "+mn-sym",
     *,
-    major_bold: bool = True,
-    minor_bold: bool = False,
+    title_bold: bool = True,
+    body_bold: bool = False,
 ) -> None:
-    # TODO: presentation.xml: change defRPr typefaces in defaultTextStyle
-    # TODO: slideMasterN.xml: change buFont typeface
-    # TODO: slideMasterN.xml: change defRPr typefaces in titleStyle and bodyStyle
-    pass
+    main_path = work_path / 'ppt' / 'presentation.xml'
+    root_elem = etree.parse(main_path)
+    for style_prop_elem in root_elem.xpath('//p:defaultTextStyle//a:defRPr', namespaces=xmlns):
+        _update_paragraph_style(style_prop_elem)
+
+    master_dir = work_path / 'ppt' / 'slideMasters'
+    for master_path in master_dir.glob('slideMaster*.xml'):
+        root_elem = etree.parse(master_path)
+
+        print("master: non-default themes?", [*root_elem.xpath("//*[@*='theme2']")])
+        print("master: non-default themes?", [*root_elem.xpath("//*[@*='theme3']")])
+
+        for style_prop_elem in root_elem.xpath('//p:titleStyle//a:defRPr', namespaces=xmlns):
+            _update_paragraph_style(style_prop_elem, scheme_prefix="mj")
+            if title_bold:
+                style_prop_elem.set('b', '1')
+            else:
+                style_prop_elem.attrib.pop('b', None)
+        for style_prop_elem in root_elem.xpath('//p:bodyStyle//a:defRPr', namespaces=xmlns):
+            _update_paragraph_style(style_prop_elem)
+            if body_bold:
+                style_prop_elem.set('b', '1')
+            else:
+                style_prop_elem.attrib.pop('b', None)
+        for bullet_font_elem in root_elem.xpath('//p:bodyStyle//a:buFont', namespaces=xmlns):
+            bullet_font_elem.clear()
+            bullet_font_elem.set('typeface', bullet_font)
+
+        root_elem.write(master_path)
+
+    layout_dir = work_path / 'ppt' / 'slideLayouts'
+    for layout_path in layout_dir.glob('slideLayout*.xml'):
+        root_elem = etree.parse(layout_path)
+
+        print("layout: non-default themes?", [*root_elem.xpath("//*[@*='theme2']")])
+        print("layout: non-default themes?", [*root_elem.xpath("//*[@*='theme3']")])
+
+        for sp_elem in root_elem.xpath('//p:sp', namespaces=xmlns):
+            if ph_elems := sp_elem.xpath('p:nvSpPr//p:ph', namespaces=xmlns):
+                match ph_elems[0].get('type', 'body'):
+                    case "title":
+                        scheme_prefix = "mj"
+                    case _:  # other values may be "body", "sldNum", ...
+                        scheme_prefix = "mn"
+                print(f"{layout_path.name}: template element ({ph_elems[0].get('type')})")
+                for style_prop_elem in sp_elem.xpath('p:txBody//a:defRPr', namespaces=xmlns):
+                    _update_paragraph_style(style_prop_elem, scheme_prefix=scheme_prefix)
+                for style_prop_elem in sp_elem.xpath('p:txBody//a:rPr', namespaces=xmlns):
+                    _update_paragraph_style(style_prop_elem, scheme_prefix=scheme_prefix)
+                for style_prop_elem in sp_elem.xpath('p:txBody//a:endParaRPr', namespaces=xmlns):
+                    _update_paragraph_style(style_prop_elem, scheme_prefix=scheme_prefix)
+            else:
+                print(f"{layout_path.name}: normal element")
+                for style_prop_elem in sp_elem.xpath('p:txBody//a:rPr', namespaces=xmlns):
+                    _update_paragraph_style(style_prop_elem, scheme_prefix="mn")
+                for style_prop_elem in sp_elem.xpath('p:txBody//a:endParaRPr', namespaces=xmlns):
+                    _update_paragraph_style(style_prop_elem, scheme_prefix="mn")
+
+        root_elem.write(layout_path)
 
 
 def normalize_slide_fonts(work_path: Path) -> None:
-    # TODO: ...
-    pass
+    slide_dir = work_path / 'ppt' / 'slides'
+    for slide_path in slide_dir.glob('slides*.xml'):
+        root_elem = etree.parse(slide_path)
+
+        print("slide: non-default themes?", [*root_elem.xpath("//*[@*='theme2']")])
+        print("slide: non-default themes?", [*root_elem.xpath("//*[@*='theme3']")])
