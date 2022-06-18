@@ -18,3 +18,7 @@ def main():
     parser.add_argument('dst', type=Path)
     args = parser.parse_args()
     do_fix_fonts(args)
+
+
+if __name__ == '__main__':
+    main()
