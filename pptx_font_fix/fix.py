@@ -89,4 +89,16 @@ xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
 
 def fix_theme_font(work_path: Path, major_font: str, minor_font: str) -> None:
     theme_path = work_path / 'ppt' / 'theme' / 'theme1.xml'
-    # TODO: implement
+    # TODO: change majorFont and minorFont in fontScheme
+
+
+def normalize_master_fonts(work_path) -> None:
+    # TODO: presentation.xml: change defRPr typefaces in defaultTextStyle
+    # TODO: slideMasterN.xml: change buFont typeface
+    # TODO: slideMasterN.xml: change defRPr typefaces in titleStyle and bodyStyle
+    pass
+
+
+def normalize_slide_fonts(work_path) -> None:
+    # TODO: ...
+    pass
