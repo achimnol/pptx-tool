@@ -6,5 +6,7 @@ A script to fix up pptx font configurations considering Latin/EastAsian/ComplexS
 
 ```console
 $ poetry install
-$ poetry run pptx-fix-font input.pptx output.pptx
+$ poetry run --theme=themes/pretendard.json pptx-fix-font input.pptx output.pptx
 ```
+
+Check out the `themes` directory for more theme definitions.
