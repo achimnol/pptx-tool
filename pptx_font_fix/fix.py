@@ -131,7 +131,6 @@ def normalize_master_fonts(
                 prop_elem.set('b', '1')
             else:
                 prop_elem.attrib.pop('b', None)
-        # TODO: implement overriding first-level body paragraph style
         for prop_elem in root_elem.xpath('//p:bodyStyle//a:defRPr', namespaces=xmlns):
             _update_paragraph_style(prop_elem, theme_info)
         for prop_elem in root_elem.xpath('//p:otherStyle//a:defRPr', namespaces=xmlns):
@@ -155,7 +154,6 @@ def _normalize_slide_font(root_elem: etree.ElementTree, theme_info: Theme, log_p
                 case _:  # other values may be "body", "sldNum", ...
                     scheme_prefix = "mn"
             print(f"{log_prefix}: template element ({ph_elems[0].get('type')})")
-            # TODO: implement overriding first-level body paragraph style
             for prop_elem in sp_elem.xpath('p:txBody//a:defRPr', namespaces=xmlns):
                 _update_paragraph_style(prop_elem, theme_info, scheme_prefix=scheme_prefix)
             for prop_elem in sp_elem.xpath('p:txBody//a:rPr', namespaces=xmlns):
