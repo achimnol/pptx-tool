@@ -83,8 +83,8 @@ def fix_theme_font(
         root_elem.write(theme_path)
 
 
-def _update_paragraph_style(style_elem: etree.Element, theme_info: Theme, scheme_prefix: str = "mn") -> None:
-    for elem in style_elem.getchildren():
+def _update_paragraph_style(prop_elem: etree.Element, theme_info: Theme, scheme_prefix: str = "mn") -> None:
+    for elem in prop_elem.getchildren():
         elem_name = local_tag(elem)
         match elem_name:
             case "latin" | "ea" | "cs":
@@ -99,27 +99,46 @@ def _update_paragraph_style(style_elem: etree.Element, theme_info: Theme, scheme
                 pass
 
 
+def _update_first_level_bullet_style(prop_elem: etree.Element, theme_info: Theme) -> None:
+    for elem in prop_elem.getchildren():
+        elem_name = local_tag(elem)
+        match elem_name:
+            case "latin":
+                elem.clear()
+                elem.set('typeface', theme_info.major_font_latin + " " + theme_info.body_first_level_style)
+            case "ea" | "cs":
+                elem.clear()
+                elem.set('typeface', theme_info.major_font_hangul + " " + theme_info.body_first_level_style)
+            case _:
+                pass
+
+
 def normalize_master_fonts(
     work_path: Path,
     theme_info: Theme,
 ) -> None:
     main_path = work_path / 'ppt' / 'presentation.xml'
     root_elem = etree.parse(main_path)
-    for style_prop_elem in root_elem.xpath('//p:defaultTextStyle//a:defRPr', namespaces=xmlns):
-        _update_paragraph_style(style_prop_elem, theme_info)
+    for prop_elem in root_elem.xpath('//p:defaultTextStyle//a:defRPr', namespaces=xmlns):
+        _update_paragraph_style(prop_elem, theme_info)
 
     master_dir = work_path / 'ppt' / 'slideMasters'
     for master_path in master_dir.glob('slideMaster*.xml'):
         root_elem = etree.parse(master_path)
-        for style_prop_elem in root_elem.xpath('//p:titleStyle//a:defRPr', namespaces=xmlns):
-            _update_paragraph_style(style_prop_elem, theme_info, scheme_prefix="mj")
+        for prop_elem in root_elem.xpath('//p:titleStyle//a:defRPr', namespaces=xmlns):
+            _update_paragraph_style(prop_elem, theme_info, scheme_prefix="mj")
             if theme_info.title_bold:
-                style_prop_elem.set('b', '1')
+                prop_elem.set('b', '1')
             else:
-                style_prop_elem.attrib.pop('b', None)
+                prop_elem.attrib.pop('b', None)
         # TODO: implement overriding first-level body paragraph style
-        for style_prop_elem in root_elem.xpath('//p:bodyStyle//a:defRPr', namespaces=xmlns):
-            _update_paragraph_style(style_prop_elem, theme_info)
+        for prop_elem in root_elem.xpath('//p:bodyStyle//a:defRPr', namespaces=xmlns):
+            _update_paragraph_style(prop_elem, theme_info)
+        for prop_elem in root_elem.xpath('//p:otherStyle//a:defRPr', namespaces=xmlns):
+            _update_paragraph_style(prop_elem, theme_info)
+        if theme_info.body_first_level_style is not None:
+            for prop_elem in root_elem.xpath('//p:bodyStyle//a:lvl1pPr//a:defRPr', namespaces=xmlns):
+                _update_first_level_bullet_style(prop_elem, theme_info)
         for bullet_font_elem in root_elem.xpath('//p:bodyStyle//a:buFont', namespaces=xmlns):
             bullet_font_elem.clear()
             bullet_font_elem.set('typeface', theme_info.minor_font_symbol)
@@ -137,18 +156,21 @@ def _normalize_slide_font(root_elem: etree.ElementTree, theme_info: Theme, log_p
                     scheme_prefix = "mn"
             print(f"{log_prefix}: template element ({ph_elems[0].get('type')})")
             # TODO: implement overriding first-level body paragraph style
-            for style_prop_elem in sp_elem.xpath('p:txBody//a:defRPr', namespaces=xmlns):
-                _update_paragraph_style(style_prop_elem, theme_info, scheme_prefix=scheme_prefix)
-            for style_prop_elem in sp_elem.xpath('p:txBody//a:rPr', namespaces=xmlns):
-                _update_paragraph_style(style_prop_elem, theme_info, scheme_prefix=scheme_prefix)
-            for style_prop_elem in sp_elem.xpath('p:txBody//a:endParaRPr', namespaces=xmlns):
-                _update_paragraph_style(style_prop_elem, theme_info, scheme_prefix=scheme_prefix)
+            for prop_elem in sp_elem.xpath('p:txBody//a:defRPr', namespaces=xmlns):
+                _update_paragraph_style(prop_elem, theme_info, scheme_prefix=scheme_prefix)
+            for prop_elem in sp_elem.xpath('p:txBody//a:rPr', namespaces=xmlns):
+                _update_paragraph_style(prop_elem, theme_info, scheme_prefix=scheme_prefix)
+            for prop_elem in sp_elem.xpath('p:txBody//a:endParaRPr', namespaces=xmlns):
+                _update_paragraph_style(prop_elem, theme_info, scheme_prefix=scheme_prefix)
+            if theme_info.body_first_level_style is not None:
+                for prop_elem in sp_elem.xpath('//a:lvl1pPr//a:defRPr', namespaces=xmlns):
+                    _update_first_level_bullet_style(prop_elem, theme_info)
         else:
             print(f"{log_prefix}: normal element")
-            for style_prop_elem in sp_elem.xpath('p:txBody//a:rPr', namespaces=xmlns):
-                _update_paragraph_style(style_prop_elem, theme_info, scheme_prefix="mn")
-            for style_prop_elem in sp_elem.xpath('p:txBody//a:endParaRPr', namespaces=xmlns):
-                _update_paragraph_style(style_prop_elem, theme_info, scheme_prefix="mn")
+            for prop_elem in sp_elem.xpath('p:txBody//a:rPr', namespaces=xmlns):
+                _update_paragraph_style(prop_elem, theme_info, scheme_prefix="mn")
+            for prop_elem in sp_elem.xpath('p:txBody//a:endParaRPr', namespaces=xmlns):
+                _update_paragraph_style(prop_elem, theme_info, scheme_prefix="mn")
 
 
 
