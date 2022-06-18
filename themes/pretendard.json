@@ -1,0 +1,16 @@
+{
+  "majorFont": {
+    "latin": "Pretendard",
+    "hangul": "Pretendard",
+    "symbol": "Pretendard"
+  },
+  "minorFont": {
+    "latin": "Pretendard",
+    "hangul": "Pretendard",
+    "symbol": "Pretendard"
+  },
+  "options": {
+    "bodyFirstLevelStyle": "SemiBold",
+    "titleBold": true
+  }
+}

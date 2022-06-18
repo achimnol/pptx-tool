@@ -1,0 +1,16 @@
+{
+  "majorFont": {
+    "latin": "NanumSquareRound ExtraBold",
+    "hangul": "NanumSquareRound ExtraBold",
+    "symbol": "MS Gothic"
+  },
+  "minorFont": {
+    "latin": "NanumSquareRound",
+    "hangul": "NanumSquareRound",
+    "symbol": "MS Gothic"
+  },
+  "options": {
+    "bodyFirstLevelStyle": null,
+    "titleBold": true
+  }
+}

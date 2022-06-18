@@ -1,0 +1,16 @@
+{
+  "majorFont": {
+    "latin": "나눔바른고딕",
+    "hangul": "나눔바른고딕",
+    "symbol": "MS Gothic"
+  },
+  "minorFont": {
+    "latin": "나눔바른고딕",
+    "hangul": "나눔바른고딕",
+    "symbol": "MS Gothic"
+  },
+  "options": {
+    "bodyFirstLevelStyle": null,
+    "titleBold": true
+  }
+}

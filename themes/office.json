@@ -1,0 +1,16 @@
+{
+  "majorFont": {
+    "latin": "Calibri",
+    "hangul": "Malgun Gothic",
+    "symbol": "MS Gothic"
+  },
+  "minorFont": {
+    "latin": "Calibri",
+    "hangul": "Malgun Gothic",
+    "symbol": "MS Gothic"
+  },
+  "options": {
+    "bodyFirstLevelStyle": null,
+    "titleBold": true
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "majorFont": {
+    "latin": "나눔스퀘어 ExtraBold",
+    "hangul": "나눔스퀘어 ExtraBold",
+    "symbol": "MS Gothic"
+  },
+  "minorFont": {
+    "latin": "나눔스퀘어",
+    "hangul": "나눔스퀘어",
+    "symbol": "MS Gothic"
+  },
+  "options": {
+    "bodyFirstLevelStyle": null,
+    "titleBold": true
+  }
+}
