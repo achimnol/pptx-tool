@@ -1,5 +1,5 @@
 # pptx-tool
-A script package for pptx helper tools.  
+A script package for pptx helper tools to fill the gap between PowerPoint GUI and OOXML.  
 The main function is to fix up pptx font configurations considering Latin/EastAsian/ComplexScript/Symbol typeface mappings.
 
 This script package only relies on `lxml`, a popular XML parsing &amp; manipulation library for Python, and Python 3.10.
