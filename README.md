@@ -27,3 +27,13 @@ $ poetry run pptx-tool generate-font-theme --theme=themes/pretendard.json 'My Pr
 ```
 
 After restarting the PowerPoint app, you can choose this theme from the "Design" ribbon.
+
+## Known Issues
+
+* After applying the font theme by this tool, there may be multiple major/minor fonts displayed in the font selection list.
+  This seems to be due to having all 'latin', 'ea', 'cs' fonts.
+  But this is required to prevent issues like incomplete ongoing composition of Hangul characters confusing the PowerPoint app to
+  distinguish the correct font to use.
+
+  To keep consistency on new shape objects, it is best to use the "copy style" function to make the fonts consistent and avoid
+  using multiple different fonts in the slides.
