@@ -132,3 +132,5 @@ dmypy.json
 .*.swp
 .swp
 .DS_Store
+*.code-workspace
+*.pptx
