@@ -13,7 +13,16 @@ If you are new to `pyenv` and on macOS, install it using [`homebrew`](https://br
 
 ```console
 $ poetry install
-$ poetry run --theme=themes/pretendard.json pptx-font-fix input.pptx output.pptx
+$ poetry run pptx-tool fix-font --theme=themes/pretendard.json pptx-font-fix input.pptx output.pptx
 ```
 
 Check out the `themes` directory for more theme definitions.
+
+You may also generate and register an office font theme (shared by all Office apps) with
+the following command:
+
+```console
+$ poetry run pptx-tool generate-font-theme --theme=themes/pretendard.json 'My Pretendard'
+```
+
+After restarting the PowerPoint app, you can choose this theme from the "Design" ribbon.

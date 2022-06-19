@@ -6,7 +6,7 @@ authors = ["Joongi Kim <me@daybreaker.info>"]
 license = "MIT"
 
 [tool.poetry.scripts]
-pptx-font-fix = "pptx_font_fix.__main__:main"
+pptx-tool = "pptx_font_fix.__main__:main"
 
 [tool.poetry.dependencies]
 python = "^3.10"

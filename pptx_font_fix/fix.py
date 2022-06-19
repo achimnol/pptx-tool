@@ -1,5 +1,6 @@
-from typing import Final
+import sys
 from pathlib import Path
+from typing import Final
 
 from lxml import etree
 
@@ -43,6 +44,28 @@ def _print_font_scheme(font_scheme: etree.Element, indent: str = "") -> None:
                     )
 
 
+def _fill_font_scheme(target_elem: etree.Element, theme_info: Theme) -> None:
+    major_font_elem = etree.Element(etree.QName(xmlns['a'], 'majorFont'))
+    major_font_elem.append(etree.Element(etree.QName(xmlns['a'], 'latin'), attrib={'typeface': theme_info.major_font_latin}))
+    major_font_elem.append(etree.Element(etree.QName(xmlns['a'], 'ea'), attrib={'typeface': theme_info.major_font_hangul}))
+    major_font_elem.append(etree.Element(etree.QName(xmlns['a'], 'cs'), attrib={'typeface': ""}))
+    major_font_elem.append(etree.Element(etree.QName(xmlns['a'], 'sym'), attrib={'typeface': theme_info.major_font_symbol}))
+    # major_font_elem.append(etree.Element(etree.QName(xmlns['a'], 'font'), attrib={'script': 'Hang', 'typeface': theme_info.major_font_hangul}))
+    minor_font_elem = etree.Element(etree.QName(xmlns['a'], 'minorFont'))
+    minor_font_elem.append(etree.Element(etree.QName(xmlns['a'], 'latin'), attrib={'typeface': theme_info.minor_font_latin}))
+    minor_font_elem.append(etree.Element(etree.QName(xmlns['a'], 'ea'), attrib={'typeface': theme_info.minor_font_hangul}))
+    minor_font_elem.append(etree.Element(etree.QName(xmlns['a'], 'cs'), attrib={'typeface': ""}))
+    minor_font_elem.append(etree.Element(etree.QName(xmlns['a'], 'sym'), attrib={'typeface': theme_info.minor_font_symbol}))
+    # minor_font_elem.append(etree.Element(etree.QName(xmlns['a'], 'font'), attrib={'script': 'Hang', 'typeface': theme_info.minor_font_hangul}))
+    # Replace the theme font
+    font_scheme_attrib = {**target_elem.attrib}
+    target_elem.clear()
+    for k, v in font_scheme_attrib.items():
+        target_elem.set(k, v)
+    target_elem.append(major_font_elem)
+    target_elem.append(minor_font_elem)
+
+
 def fix_theme_font(
     work_path: Path,
     theme_info: Theme,
@@ -56,31 +79,48 @@ def fix_theme_font(
         print(f"Current font scheme: (name={font_scheme_elem.get('name')!r})")
         _print_font_scheme(font_scheme_elem, indent="  ")
 
-        # Replace the theme font
-        major_font_elem = etree.Element(etree.QName(xmlns['a'], 'majorFont'))
-        major_font_elem.append(etree.Element(etree.QName(xmlns['a'], 'latin'), attrib={'typeface': theme_info.major_font_latin}))
-        major_font_elem.append(etree.Element(etree.QName(xmlns['a'], 'ea'), attrib={'typeface': theme_info.major_font_hangul}))
-        major_font_elem.append(etree.Element(etree.QName(xmlns['a'], 'cs'), attrib={'typeface': theme_info.major_font_hangul}))
-        major_font_elem.append(etree.Element(etree.QName(xmlns['a'], 'sym'), attrib={'typeface': theme_info.major_font_symbol}))
-        major_font_elem.append(etree.Element(etree.QName(xmlns['a'], 'font'), attrib={'script': 'Hang', 'typeface': theme_info.major_font_hangul}))
-        minor_font_elem = etree.Element(etree.QName(xmlns['a'], 'minorFont'))
-        minor_font_elem.append(etree.Element(etree.QName(xmlns['a'], 'latin'), attrib={'typeface': theme_info.minor_font_latin}))
-        minor_font_elem.append(etree.Element(etree.QName(xmlns['a'], 'ea'), attrib={'typeface': theme_info.minor_font_hangul}))
-        minor_font_elem.append(etree.Element(etree.QName(xmlns['a'], 'cs'), attrib={'typeface': theme_info.minor_font_hangul}))
-        minor_font_elem.append(etree.Element(etree.QName(xmlns['a'], 'sym'), attrib={'typeface': theme_info.minor_font_symbol}))
-        minor_font_elem.append(etree.Element(etree.QName(xmlns['a'], 'font'), attrib={'script': 'Hang', 'typeface': theme_info.minor_font_hangul}))
-        font_scheme_attrib = {**font_scheme_elem.attrib}
-        font_scheme_elem.clear()
-        for k, v in font_scheme_attrib.items():
-            font_scheme_elem.set(k, v)
-        font_scheme_elem.append(major_font_elem)
-        font_scheme_elem.append(minor_font_elem)
+        _fill_font_scheme(font_scheme_elem, theme_info)
 
         print(f"New font scheme: (name={font_scheme_elem.get('name')!r})")
         _print_font_scheme(font_scheme_elem, indent="  ")
 
         # Write back
         root_elem.write(theme_path)
+
+
+def _get_font_theme_dir() -> Path:
+    match sys.platform:
+        case 'darwin':
+            return (
+                Path.home() / 'Library' / 'Group Containers'
+                / 'UBF8T346G9.Office' / 'User Content.localized'
+                / 'Themes.localized' / 'Theme Fonts'
+            )
+        case 'win32':
+            return (
+                Path.home() / 'AppData' / 'Roaming'
+                / 'Templates' / 'Document Themes' / 'Theme Fonts'
+            )
+        case _:
+            raise RuntimeError("Unsupported OS to auto-detect Microsoft Office's theme directory")
+
+
+def generate_font_theme(theme_info: Theme, theme_name: str, *, overwrite: bool = False) -> None:
+    theme_dir = _get_font_theme_dir()
+    if not theme_dir.is_dir():
+        raise RuntimeError("The office theme directory does not exist.", str(theme_dir))
+    theme_path = theme_dir / f"{theme_name}.xml"
+    if theme_path.exists() and not overwrite:
+        raise RuntimeError("The target theme file already exist.", str(theme_path))
+    root_elem = etree.Element(
+        etree.QName(xmlns['a'], 'fontScheme'),
+        nsmap={k: v for k, v in xmlns.items() if k == "a"},  # filter only the "a" (drawingml) namespace
+    )
+    _fill_font_scheme(root_elem, theme_info)
+    root_elem.set('name', theme_name)
+    tree = etree.ElementTree(root_elem)
+    tree.write(theme_path, pretty_print=True)
+    print(f"Stored an Office theme font definition at:\n{theme_path}")
 
 
 def _update_paragraph_style(prop_elem: etree.Element, theme_info: Theme, scheme_prefix: str = "mn") -> None:
