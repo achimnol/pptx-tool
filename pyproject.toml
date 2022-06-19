@@ -1,12 +1,12 @@
 [tool.poetry]
-name = "pptx-font-fix"
+name = "pptx-tool"
 version = "0.1.0"
 description = ""
 authors = ["Joongi Kim <me@daybreaker.info>"]
 license = "MIT"
 
 [tool.poetry.scripts]
-pptx-tool = "pptx_font_fix.__main__:main"
+pptx-tool = "pptx_tool.__main__:main"
 
 [tool.poetry.dependencies]
 python = "^3.10"
