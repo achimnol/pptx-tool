@@ -19,6 +19,43 @@ style_typeface_map: Final = {
     'sym': 'sym',
 }
 
+known_monospace_fonts: Final = {
+    'courier',
+    'courier new',
+    'consolas',
+    'cascadia code',
+    'cascadia mono',
+    'inconsolata',
+    'jetbrains mono',
+    'menlo',
+    'monaco',
+    'terminus',
+    'bitstream vera sans mono',
+    'droid sans mono',
+    'dejavu sans mono',
+    'pt mono',
+    'sf mono',
+    'andale mono',
+    'arpercu mono',
+    'dank mono',
+    'input mono',
+    'roboto mono',
+    'oxygen mono',
+    'space mono',
+    'ubuntu mono',
+    'liberation mono',
+    'anonymous pro',
+    'source code pro',
+    'iosevka',
+    'monolisa',
+    'monoid',
+    'gintronic',
+    'fira code',
+    'nanumgothiccoding',
+    'hack',
+    'recursive',
+}
+
 
 def local_tag(tag_name) -> str:
     """Strip out the namespace from the element tag name."""
@@ -87,6 +124,10 @@ def fix_theme_font(
         # Write back
         root_elem.write(theme_path)
 
+    print("Target monospace font:")
+    print(f"  latin: {theme_info.mono_font_latin}")
+    print(f"  hangul: {theme_info.mono_font_hangul}")
+
 
 def _get_font_theme_dir() -> Path:
     match sys.platform:
@@ -123,13 +164,24 @@ def generate_font_theme(theme_info: Theme, theme_name: str, *, overwrite: bool =
     print(f"Stored an Office theme font definition at:\n{theme_path}")
 
 
+def _match_monospace_font(typeface: str) -> bool:
+    return typeface.lower() in known_monospace_fonts
+
+
 def _update_paragraph_style(prop_elem: etree.Element, theme_info: Theme, scheme_prefix: str = "mn") -> None:
     for elem in prop_elem.getchildren():
         elem_name = local_tag(elem)
         match elem_name:
             case "latin" | "ea" | "cs":
-                elem.clear()
-                elem.set('typeface', f"+{scheme_prefix}-{style_typeface_map[elem_name]}")
+                if _match_monospace_font(elem.get('typeface')):
+                    elem.clear()
+                    if elem_name == "latin":
+                        elem.set('typeface', theme_info.mono_font_latin)
+                    else:
+                        elem.set('typeface', theme_info.mono_font_hangul)
+                else:
+                    elem.clear()
+                    elem.set('typeface', f"+{scheme_prefix}-{style_typeface_map[elem_name]}")
             case "sym":
                 elem.clear()
                 elem.set('typeface', theme_info.minor_font_symbol if scheme_prefix == "mn" else theme_info.major_font_symbol)
@@ -144,11 +196,19 @@ def _update_first_level_bullet_style(prop_elem: etree.Element, theme_info: Theme
         elem_name = local_tag(elem)
         match elem_name:
             case "latin":
-                elem.clear()
-                elem.set('typeface', theme_info.major_font_latin + " " + theme_info.body_first_level_style)
+                if _match_monospace_font(elem.get('typeface')):
+                    elem.clear()
+                    elem.set('typeface', theme_info.mono_font_latin + " " + theme_info.body_first_level_style)
+                else:
+                    elem.clear()
+                    elem.set('typeface', theme_info.minor_font_latin + " " + theme_info.body_first_level_style)
             case "ea" | "cs":
-                elem.clear()
-                elem.set('typeface', theme_info.major_font_hangul + " " + theme_info.body_first_level_style)
+                if _match_monospace_font(elem.get('typeface')):
+                    elem.clear()
+                    elem.set('typeface', theme_info.mono_font_hangul + " " + theme_info.body_first_level_style)
+                else:
+                    elem.clear()
+                    elem.set('typeface', theme_info.minor_font_hangul + " " + theme_info.body_first_level_style)
             case _:
                 pass
 

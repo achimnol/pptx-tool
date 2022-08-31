@@ -9,6 +9,10 @@
     "hangul": "Malgun Gothic",
     "symbol": "MS Gothic"
   },
+  "monoFont": {
+    "latin": "Consolas",
+    "hangul": "Malgun Gothic"
+  },
   "options": {
     "bodyFirstLevelStyle": null,
     "titleBold": true

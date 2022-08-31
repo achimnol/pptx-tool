@@ -23,6 +23,8 @@ def _load_theme(args: argparse.Namespace) -> Theme:
         minor_font_latin=theme_data['minorFont']['latin'],
         minor_font_hangul=theme_data['minorFont']['hangul'],
         minor_font_symbol=theme_data['minorFont']['symbol'],
+        mono_font_latin=theme_data['monoFont']['latin'],
+        mono_font_hangul=theme_data['monoFont']['hangul'],
         title_bold=theme_data['options']['titleBold'],
         body_first_level_style=theme_data['options']['bodyFirstLevelStyle'],
     )

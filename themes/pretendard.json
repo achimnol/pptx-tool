@@ -9,6 +9,10 @@
     "hangul": "Pretendard",
     "symbol": "Pretendard"
   },
+  "monoFont": {
+    "latin": "JetBrains Mono",
+    "hangul": "Pretendard"
+  },
   "options": {
     "bodyFirstLevelStyle": "SemiBold",
     "titleBold": true

@@ -9,6 +9,10 @@
     "hangul": "나눔스퀘어",
     "symbol": "MS Gothic"
   },
+  "monoFont": {
+    "latin": "NanumGothicCoding",
+    "hangul": "NanumGothicCoding"
+  },
   "options": {
     "bodyFirstLevelStyle": null,
     "titleBold": true
