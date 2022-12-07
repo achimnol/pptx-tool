@@ -270,6 +270,9 @@ def _normalize_slide_font(root_elem: etree.ElementTree, theme_info: Theme, log_p
             for prop_elem in sp_elem.xpath('p:txBody//a:endParaRPr', namespaces=xmlns):
                 _update_paragraph_style(prop_elem, theme_info, scheme_prefix="mn")
 
+    for bullet_font_elem in root_elem.xpath('//a:pPr//a:buFont', namespaces=xmlns):
+        bullet_font_elem.clear()
+        bullet_font_elem.set('typeface', theme_info.minor_font_symbol)
 
 
 def normalize_layout_fonts(
