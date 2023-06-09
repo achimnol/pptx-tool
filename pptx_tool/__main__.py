@@ -30,6 +30,20 @@ def _load_theme(args: argparse.Namespace) -> Theme:
     )
     return theme_info
 
+
+def do_extract_pptx(args: argparse.Namespace) -> None:
+    dst_path: Path = args.dst
+    if dst_path.exists():
+        assert dst_path.is_dir()
+    else:
+        dst_path.mkdir(parents=True)
+    extract_pptx(args.src, dst_path)
+
+
+def do_build_pptx(args: argparse.Namespace) -> None:
+    build_pptx(args.src, args.dst)
+
+
 def do_fix_pptx(args: argparse.Namespace) -> None:
     theme_info = _load_theme(args)
     with tempfile.TemporaryDirectory(prefix="pptx-font-fix-") as tmp_dir:
@@ -50,6 +64,22 @@ def do_generate_font_theme(args: argparse.Namespace) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(title="commands")
+
+    parser_extract = subparsers.add_parser(
+        'extract',
+        help="Extract the pptx file into a directory.",
+    )
+    parser_extract.add_argument('src', type=Path, help="The source pptx file.")
+    parser_extract.add_argument('dst', type=Path, help="The destination directory to extract.")
+    parser_extract.set_defaults(func=do_extract_pptx)
+
+    parser_build = subparsers.add_parser(
+        'build',
+        help="Build the directory as a pptx file.",
+    )
+    parser_build.add_argument('src', type=Path, help="The source directory.")
+    parser_build.add_argument('dst', type=Path, help="The destination pptx file.")
+    parser_build.set_defaults(func=do_build_pptx)
 
     parser_fix = subparsers.add_parser(
         'fix-font',
