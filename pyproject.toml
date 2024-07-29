@@ -11,9 +11,13 @@ pptx-tool = "pptx_tool.__main__:main"
 [tool.poetry.dependencies]
 python = "^3.10"
 lxml = "^4.9.0"
+flask = {version = "^3.0.3", optional = true}
 
 [tool.poetry.dev-dependencies]
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.extras]
+webui = ["flask"]

@@ -1,0 +1,20 @@
+{
+  "majorFont": {
+    "latin": "Inter Display",
+    "hangul": "Pretendard",
+    "symbol": "Pretendard"
+  },
+  "minorFont": {
+    "latin": "Inter Display",
+    "hangul": "Pretendard",
+    "symbol": "Pretendard"
+  },
+  "monoFont": {
+    "latin": "Consolas",
+    "hangul": "Pretendard"
+  },
+  "options": {
+    "bodyFirstLevelStyle": "SemiBold",
+    "titleBold": true
+  }
+}
