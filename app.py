@@ -30,7 +30,7 @@ def upload_file():
         # Command to run the pptx-tool with the provided options
         command = [
             'poetry', 'run', 'pptx-tool', 'fix-font',
-            '--theme=themes/inter-pretendard.json', input_filepath, output_filepath
+            '--theme=themes/interdisplay-pretendard.json', input_filepath, output_filepath
         ]
         
         try:
