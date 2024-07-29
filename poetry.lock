@@ -281,9 +281,9 @@ MarkupSafe = ">=2.1.1"
 watchdog = ["watchdog (>=2.3)"]
 
 [extras]
-http = ["flask"]
+webui = ["flask"]
 
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "37b70c96dfcb6da4f5940a1a36bc3b6eb5335f176a96b27c8867657ba855803c"
+content-hash = "b1890fa70497d108bbab682010fc05ead462255ecb1f1f2f2068269dd76fd6f8"
