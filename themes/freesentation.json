@@ -1,0 +1,20 @@
+{
+  "majorFont": {
+    "latin": "Freesentation",
+    "hangul": "Freesentation",
+    "symbol": "Freesentation"
+  },
+  "minorFont": {
+    "latin": "Freesentation",
+    "hangul": "Freesentation",
+    "symbol": "Freesentation"
+  },
+  "monoFont": {
+    "latin": "Victor Mono",
+    "hangul": "Freesentation"
+  },
+  "options": {
+    "bodyFirstLevelStyle": "SemiBold",
+    "titleBold": true
+  }
+}
