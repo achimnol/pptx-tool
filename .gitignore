@@ -134,3 +134,6 @@ dmypy.json
 .DS_Store
 *.code-workspace
 *.pptx
+
+# uv (not used by this project; created by ad-hoc `uv run` invocations)
+uv.lock
