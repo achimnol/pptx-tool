@@ -1,13 +1,13 @@
 {
   "majorFont": {
-    "latin": "Inter Display",
-    "hangul": "Pretendard",
-    "symbol": "Pretendard"
+    "latin": "SNU Appendard",
+    "hangul": "SNU Appendard",
+    "symbol": "SNU Appendard"
   },
   "minorFont": {
-    "latin": "Inter Display",
-    "hangul": "Pretendard",
-    "symbol": "Pretendard"
+    "latin": "SNU Appendard",
+    "hangul": "SNU Appendard",
+    "symbol": "SNU Appendard"
   },
   "monoFont": {
     "latin": "Sarasa Term K",

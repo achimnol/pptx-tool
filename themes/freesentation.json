@@ -1,13 +1,13 @@
 {
   "majorFont": {
-    "latin": "Inter Display",
-    "hangul": "Pretendard",
-    "symbol": "Pretendard"
+    "latin": "Freesentation",
+    "hangul": "Freesentation",
+    "symbol": "Freesentation"
   },
   "minorFont": {
-    "latin": "Inter Display",
-    "hangul": "Pretendard",
-    "symbol": "Pretendard"
+    "latin": "Freesentation",
+    "hangul": "Freesentation",
+    "symbol": "Freesentation"
   },
   "monoFont": {
     "latin": "Sarasa Term K",
