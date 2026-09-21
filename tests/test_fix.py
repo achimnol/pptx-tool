@@ -224,8 +224,9 @@ def _write_part(work_path: Path, relpath: str, body: str) -> Path:
     [
         # The body style gets two passes: _update_paragraph_style turns Consolas into the
         # theme's monospace font, then _update_first_level_bullet_style re-reads the result.
-        # 'MONO-LT' is not a known monospace font, so the second pass falls back to the minor
-        # font.  See test_master_body_style_double_pass for the case where it is one.
+        # The sentinel 'MONO-LT' is not a known monospace font, so the second pass falls back
+        # to the minor font.  Every bundled theme has a monoFont that *is* a known monospace
+        # font, so see test_master_body_style_double_pass for what they actually produce.
         (False, ["MIN-LT SemiBold", "MIN-SYM"]),
         (True, ["Consolas", "Consolas"]),
     ],
@@ -267,11 +268,8 @@ def test_normalize_master_fonts_still_applies_title_bold_to_preserved(tmp_path, 
     assert prop_elem.getchildren()[0].get('typeface') == ("Consolas" if preserve_mono else "MONO-LT")
 
 
-@pytest.mark.parametrize(
-    'scheme_prefix,ph_type,expected',
-    [("mj", "title", "+mj-lt"), ("mn", "body", "+mn-lt")],
-)
-def test_normalize_slide_font_placeholder_branch(make_theme, scheme_prefix, ph_type, expected):
+@pytest.mark.parametrize('ph_type,expected', [("title", "+mj-lt"), ("body", "+mn-lt")])
+def test_normalize_slide_font_placeholder_branch(make_theme, ph_type, expected):
     """A placeholder shape picks the major/minor scheme and also rewrites its defRPr."""
     root_elem = _parse_slide(
         f'<p:sp><p:nvSpPr><p:nvPr><p:ph type="{ph_type}"/></p:nvPr></p:nvSpPr><p:txBody><a:p>'
@@ -307,9 +305,10 @@ def test_fix_theme_font_is_never_preserved(tmp_path, make_theme, preserve_mono):
 def test_master_body_style_double_pass(tmp_path, make_theme):
     """A theme whose monoFont is itself a known monospace font keeps it in the body style.
 
-    Ten of the bundled themes set monoFont to 'Sarasa Term K', which is in
-    known_monospace_fonts, so the second pass over a first-level body style recognizes the
-    font the first pass just wrote and keeps it instead of falling back to the minor font.
+    Every bundled theme is in this case: 7 of the 11 use 'Sarasa Term K', the rest use
+    'NanumGothicCoding' or 'Consolas', and all of those are in known_monospace_fonts.  So the
+    second pass over a first-level body style recognizes the font the first pass just wrote
+    and keeps it, instead of falling back to the minor font.
     """
     master_path = _write_part(
         tmp_path,

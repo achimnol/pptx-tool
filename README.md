@@ -40,15 +40,16 @@ You may also enable it in the theme file itself, and override it back with `--no
 }
 ```
 
-Note that the preservation works per text object: if any of its typefaces is a monospace font,
-the whole object is left untouched, including its symbol typeface and script-specific overrides.
+Note that the preservation works per text property element, that is, a single run's `rPr` or a
+paragraph's `defRPr`, rather than per shape: if any of its typefaces is a monospace font, that
+whole element is left untouched, including its symbol typeface and script-specific overrides.
 This is intended so that a code block with Korean comments does not have only its latin part
 converted.  Bullet fonts using a monospace font are preserved likewise.
 
 The matching is an exact, case-insensitive lookup of the known font list, so it does not cover
 the objects whose typeface carries a weight suffix such as "JetBrains Mono ExtraBold".
-It also works per text object, not per paragraph, so an empty line of a code block still gets
-converted if PowerPoint has stamped a non-monospace typeface on it.
+Since the unit is a single run, an empty line of a code block still gets converted if
+PowerPoint has stamped a non-monospace typeface on its `endParaRPr`.
 
 You may also generate and register an office font theme (shared by all Office apps) with
 the following command:
