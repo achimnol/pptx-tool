@@ -19,6 +19,29 @@ $ poetry run pptx-tool fix-font --theme=themes/pretendard.json input.pptx output
 
 Check out the `themes` directory for more theme definitions.
 
+By default, the text objects using a known monospace font (see `known_monospace_fonts`
+in `pptx_tool/fix.py`) are replaced with the theme's `monoFont`.
+If your slides use monospace fonts deliberately, such as for sample code, you may keep them
+as-is with the `--preserve-mono` option:
+
+```console
+$ poetry run pptx-tool fix-font --preserve-mono --theme=themes/pretendard.json input.pptx output.pptx
+```
+
+You may also enable it in the theme file itself, and override it back with `--no-preserve-mono`:
+
+```json
+{
+  "options": {
+    "preserveMono": true
+  }
+}
+```
+
+Note that the preservation works per text object: if any of its typefaces is a monospace font,
+the whole object is left untouched, including its symbol typeface and script-specific overrides.
+This is intended so that a code block with Korean comments does not get half-converted.
+
 You may also generate and register an office font theme (shared by all Office apps) with
 the following command:
 
@@ -37,3 +60,10 @@ After restarting the PowerPoint app, you can choose this theme from the "Design"
 
   To keep consistency on new shape objects, it is best to use the "copy style" function to make the fonts consistent and avoid
   using multiple different fonts in the slides.
+
+## Development
+
+```console
+$ poetry install
+$ poetry run pytest
+```
