@@ -1,4 +1,5 @@
 import dataclasses
+from pathlib import Path
 from typing import Any, Protocol
 
 import pytest
@@ -6,6 +7,8 @@ from lxml import etree
 
 from pptx_tool.fix import xmlns
 from pptx_tool.types import Theme
+
+from .samples import make_minimal_pptx
 
 
 class MakeTheme(Protocol):
@@ -35,6 +38,12 @@ def make_theme() -> MakeTheme:
         return dataclasses.replace(theme_info, **overrides)
 
     return _make_theme
+
+
+@pytest.fixture
+def sample_pptx(tmp_path: Path) -> Path:
+    """A minimal generated pptx file named "sample.pptx"."""
+    return make_minimal_pptx(tmp_path / "sample.pptx")
 
 
 @pytest.fixture
