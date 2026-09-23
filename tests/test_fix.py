@@ -230,14 +230,10 @@ def test_cli_overrides_theme_preserve_mono(
     )
     # Stub out the pipeline so the real do_fix_pptx runs and we can see the Theme it builds.
     captured: list[Theme] = []
-    monkeypatch.setattr("pptx_tool.__main__.extract_pptx", lambda src, dst: None)
-    monkeypatch.setattr("pptx_tool.__main__.build_pptx", lambda src, dst: None)
     monkeypatch.setattr(
-        "pptx_tool.__main__.fix_theme_font",
-        lambda work_path, theme_info: captured.append(theme_info),
+        "pptx_tool.__main__.fix_pptx",
+        lambda src, dst, theme_info: captured.append(theme_info),
     )
-    for func_name in ("normalize_master_fonts", "normalize_layout_fonts", "normalize_slide_fonts"):
-        monkeypatch.setattr(f"pptx_tool.__main__.{func_name}", lambda work_path, theme_info: None)
     monkeypatch.setattr(
         "sys.argv",
         ["pptx-tool", "fix-font", "--theme", str(theme_path), *argv, "src.pptx", "dst.pptx"],

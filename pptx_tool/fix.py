@@ -188,22 +188,80 @@ def _get_font_theme_dir() -> Path:
             raise RuntimeError("Unsupported OS to auto-detect Microsoft Office's theme directory")
 
 
-def generate_font_theme(theme_info: Theme, theme_name: str, *, overwrite: bool = False) -> None:
-    theme_dir = _get_font_theme_dir()
-    if not theme_dir.is_dir():
-        raise RuntimeError("The office theme directory does not exist.", str(theme_dir))
-    theme_path = theme_dir / f"{theme_name}.xml"
-    if theme_path.exists() and not overwrite:
-        raise RuntimeError("The target theme file already exist.", str(theme_path))
+class FontThemeError(RuntimeError):
+    """Raised when an Office font theme cannot be installed."""
+
+
+class FontThemeExistsError(FontThemeError, FileExistsError):
+    """Raised when installing an Office font theme would overwrite an existing one."""
+
+    def __init__(self, path: Path) -> None:
+        super().__init__("The target theme file already exist.", str(path))
+        self.path = path
+
+
+class InvalidFontThemeNameError(ValueError):
+    """Raised when an Office font theme name is not usable as a file name."""
+
+
+_invalid_font_theme_name_chars: Final = frozenset('/\\:*?"<>|')
+
+
+def validate_font_theme_name(name: str) -> str:
+    """Check that the font theme name is a safe file name on every platform and return it stripped."""
+    name = name.strip()
+    if not name:
+        raise InvalidFontThemeNameError("The font theme name must not be empty.")
+    if len(name) > 100:
+        raise InvalidFontThemeNameError("The font theme name must be at most 100 characters long.")
+    if any(c in _invalid_font_theme_name_chars or ord(c) < 0x20 or ord(c) == 0x7F for c in name):
+        raise InvalidFontThemeNameError(
+            'The font theme name must not contain control characters or any of / \\ : * ? " < > |.'
+        )
+    if name.endswith("."):
+        raise InvalidFontThemeNameError("The font theme name must not end with a dot.")
+    return name
+
+
+def build_font_theme_xml(theme_info: Theme, theme_name: str) -> bytes:
+    """Build the content of an Office font theme definition file."""
     root_elem = etree.Element(
         etree.QName(xmlns["a"], "fontScheme"),
         nsmap={k: v for k, v in xmlns.items() if k == "a"},  # filter only the "a" (drawingml) namespace
     )
     _fill_font_scheme(root_elem, theme_info)
     root_elem.set("name", theme_name)
-    tree = etree.ElementTree(root_elem)
-    tree.write(theme_path, pretty_print=True)
+    return etree.tostring(root_elem, pretty_print=True)
+
+
+def install_font_theme(
+    xml: bytes,
+    theme_name: str,
+    *,
+    overwrite: bool = False,
+    theme_dir: Path | None = None,
+) -> Path:
+    """Write an Office font theme definition into the Office theme directory and return its path."""
+    theme_name = validate_font_theme_name(theme_name)
+    if theme_dir is None:
+        try:
+            theme_dir = _get_font_theme_dir()
+        except RuntimeError as e:
+            raise FontThemeError(*e.args) from e
+    if not theme_dir.is_dir():
+        raise FontThemeError("The office theme directory does not exist.", str(theme_dir))
+    theme_path = theme_dir / f"{theme_name}.xml"
+    if theme_path.exists() and not overwrite:
+        raise FontThemeExistsError(theme_path)
+    theme_path.write_bytes(xml)
+    return theme_path
+
+
+def generate_font_theme(theme_info: Theme, theme_name: str, *, overwrite: bool = False) -> Path:
+    theme_name = validate_font_theme_name(theme_name)
+    theme_path = install_font_theme(build_font_theme_xml(theme_info, theme_name), theme_name, overwrite=overwrite)
     logger.info("Stored an Office theme font definition at:\n%s", theme_path)
+    return theme_path
 
 
 def _match_monospace_font(typeface: str | None) -> bool:

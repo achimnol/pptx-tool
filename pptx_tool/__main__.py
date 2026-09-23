@@ -1,17 +1,11 @@
 import argparse
 import dataclasses
-import tempfile
 from pathlib import Path
 
-from .fix import (
-    fix_theme_font,
-    generate_font_theme,
-    normalize_layout_fonts,
-    normalize_master_fonts,
-    normalize_slide_fonts,
-)
+from .fix import InvalidFontThemeNameError, generate_font_theme
 from .log import cli_logging
 from .package import build_pptx, extract_pptx
+from .pipeline import fix_pptx
 from .theme import ThemeError, resolve_theme_arg
 from .types import Theme
 
@@ -39,14 +33,7 @@ def do_build_pptx(args: argparse.Namespace) -> None:
 
 def do_fix_pptx(args: argparse.Namespace) -> None:
     theme_info = _resolve_preserve_mono(resolve_theme_arg(args.theme), args)
-    with tempfile.TemporaryDirectory(prefix="pptx-font-fix-") as tmp_dir:
-        tmp_path = Path(tmp_dir)
-        extract_pptx(args.src, tmp_path)
-        fix_theme_font(tmp_path, theme_info)
-        normalize_master_fonts(tmp_path, theme_info)
-        normalize_layout_fonts(tmp_path, theme_info)
-        normalize_slide_fonts(tmp_path, theme_info)
-        build_pptx(tmp_path, args.dst)
+    fix_pptx(args.src, args.dst, theme_info)
 
 
 def do_generate_font_theme(args: argparse.Namespace) -> None:
@@ -117,7 +104,7 @@ def main() -> None:
     try:
         with cli_logging():
             args.func(args)
-    except ThemeError as e:
+    except (ThemeError, InvalidFontThemeNameError) as e:
         parser.error(str(e))
 
 
