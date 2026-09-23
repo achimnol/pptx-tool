@@ -1,6 +1,8 @@
 import json
+import sys
 import zipfile
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -144,3 +146,45 @@ def test_fix_font_with_bundled_theme(tmp_path: Path, sample_pptx: Path, monkeypa
     _run_cli(monkeypatch, "fix-font", "--theme", "pretendard", str(sample_pptx), str(dst_path))
     with zipfile.ZipFile(dst_path) as zf:
         assert 'typeface="Pretendard"' in zf.read("ppt/theme/theme1.xml").decode()
+
+
+LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "[::1]")
+
+
+def test_serve_without_web_extra(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setitem(sys.modules, "uvicorn", None)
+    with pytest.raises(SystemExit) as exc_info:
+        _run_cli(monkeypatch, "serve")
+    assert "requires the 'web' extra" in str(exc_info.value.code)
+
+
+def test_serve_refuses_local_on_public_address(monkeypatch: pytest.MonkeyPatch) -> None:
+    pytest.importorskip("litestar")
+    with pytest.raises(SystemExit) as exc_info:
+        _run_cli(monkeypatch, "serve", "--host", "0.0.0.0", "--local")
+    assert "loopback" in str(exc_info.value.code)
+
+
+@pytest.mark.parametrize(
+    "argv,local,allowed_hosts",
+    [
+        ([], False, (*LOOPBACK_HOSTS, "127.0.0.1:8000", "localhost:8000", "[::1]:8000")),
+        (["--local", "--port", "9000"], True, (*LOOPBACK_HOSTS, "127.0.0.1:9000", "localhost:9000", "[::1]:9000")),
+        (["--host", "0.0.0.0"], False, ()),
+    ],
+)
+def test_serve_config(
+    monkeypatch: pytest.MonkeyPatch, argv: list[str], local: bool, allowed_hosts: tuple[str, ...]
+) -> None:
+    pytest.importorskip("litestar")
+    import uvicorn
+
+    from pptx_tool.web import app as web_app
+
+    captured: dict[str, Any] = {}
+    monkeypatch.setattr(web_app, "create_app", lambda web_config: captured.setdefault("config", web_config))
+    monkeypatch.setattr(uvicorn, "run", lambda app, **kwargs: captured.update(kwargs))
+    _run_cli(monkeypatch, "serve", "--max-upload-mb", "10", *argv)
+    assert captured["config"].local is local
+    assert captured["config"].allowed_hosts == allowed_hosts
+    assert captured["config"].max_upload_size == 10 * 1024 * 1024

@@ -1,5 +1,7 @@
 import argparse
+import contextlib
 import dataclasses
+import sys
 from pathlib import Path
 
 from .fix import InvalidFontThemeNameError, generate_font_theme
@@ -39,6 +41,33 @@ def do_fix_pptx(args: argparse.Namespace) -> None:
 def do_generate_font_theme(args: argparse.Namespace) -> None:
     theme_info = resolve_theme_arg(args.theme)
     generate_font_theme(theme_info, args.name, overwrite=args.overwrite)
+
+
+_WEB_EXTRA_HINT = (
+    "The web UI requires the 'web' extra. Install it with `uv sync --extra web` or `pip install 'pptx-tool[web]'`."
+)
+
+
+def do_serve(args: argparse.Namespace) -> None:
+    try:
+        import uvicorn
+
+        from .web.app import create_app
+        from .web.config import LOOPBACK_ADDRESSES, WebConfig, loopback_host_headers
+    except ImportError as e:
+        if e.name is not None and e.name.split(".")[0] in {"litestar", "uvicorn", "msgspec"}:
+            sys.exit(_WEB_EXTRA_HINT)
+        raise
+    is_loopback = args.host in LOOPBACK_ADDRESSES
+    if args.local and not is_loopback:
+        sys.exit("The --local option is allowed only when serving on a loopback address such as 127.0.0.1.")
+    web_config = WebConfig(
+        local=args.local,
+        max_upload_size=args.max_upload_mb * 1024 * 1024,
+        # Accept any Host header when serving on a public address, as the host names are unknown.
+        allowed_hosts=loopback_host_headers(args.port) if is_loopback else (),
+    )
+    uvicorn.run(create_app(web_config), host=args.host, port=args.port)
 
 
 def main() -> None:
@@ -100,9 +129,31 @@ def main() -> None:
     )
     parser_gen.set_defaults(func=do_generate_font_theme)
 
+    parser_serve = subparsers.add_parser(
+        "serve",
+        help="Run the web UI server. It requires the 'web' extra.",
+    )
+    parser_serve.add_argument("--host", default="127.0.0.1", help="The address to listen on. (default: %(default)s)")
+    parser_serve.add_argument("--port", type=int, default=8000, help="The port to listen on. (default: %(default)s)")
+    parser_serve.add_argument(
+        "--local",
+        action="store_true",
+        default=False,
+        help="Enable the features that modify this machine, such as installing Office font themes. "
+        "It is allowed only when listening on a loopback address.",
+    )
+    parser_serve.add_argument(
+        "--max-upload-mb",
+        type=int,
+        default=200,
+        help="The maximum size of uploaded pptx files in MiB. (default: %(default)s)",
+    )
+    parser_serve.set_defaults(func=do_serve)
+
     args = parser.parse_args()
     try:
-        with cli_logging():
+        # The server does not echo the processing logs of each request.
+        with cli_logging() if args.func is not do_serve else contextlib.nullcontext():
             args.func(args)
     except (ThemeError, InvalidFontThemeNameError) as e:
         parser.error(str(e))
