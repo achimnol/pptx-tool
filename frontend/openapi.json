@@ -1,0 +1,498 @@
+{
+  "components": {
+    "schemas": {
+      "AppConfig": {
+        "properties": {
+          "local": {
+            "type": "boolean"
+          },
+          "maxUploadSize": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "local",
+          "maxUploadSize"
+        ],
+        "title": "AppConfig",
+        "type": "object"
+      },
+      "BundledThemeInfo": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "theme": {
+            "$ref": "#/components/schemas/ThemeData"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "theme"
+        ],
+        "title": "BundledThemeInfo",
+        "type": "object"
+      },
+      "FixFontForm": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "format": "binary",
+            "type": "string"
+          },
+          "theme": {
+            "description": "The theme definition (ThemeData) encoded as JSON.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file",
+          "theme"
+        ],
+        "title": "FixFontForm",
+        "type": "object"
+      },
+      "FixFontResult": {
+        "properties": {
+          "contentBase64": {
+            "type": "string"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "log": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "contentBase64",
+          "filename",
+          "log"
+        ],
+        "title": "FixFontResult",
+        "type": "object"
+      },
+      "FontSet": {
+        "properties": {
+          "hangul": {
+            "type": "string"
+          },
+          "latin": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "hangul",
+          "latin",
+          "symbol"
+        ],
+        "title": "FontSet",
+        "type": "object"
+      },
+      "FontThemeRequest": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "theme": {
+            "$ref": "#/components/schemas/ThemeData"
+          }
+        },
+        "required": [
+          "name",
+          "theme"
+        ],
+        "title": "FontThemeRequest",
+        "type": "object"
+      },
+      "InstallFontThemeRequest": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "overwrite": {
+            "default": false,
+            "type": "boolean"
+          },
+          "theme": {
+            "$ref": "#/components/schemas/ThemeData"
+          }
+        },
+        "required": [
+          "name",
+          "theme"
+        ],
+        "title": "InstallFontThemeRequest",
+        "type": "object"
+      },
+      "InstallFontThemeResult": {
+        "properties": {
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "InstallFontThemeResult",
+        "type": "object"
+      },
+      "MonoFontSet": {
+        "properties": {
+          "hangul": {
+            "type": "string"
+          },
+          "latin": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "hangul",
+          "latin"
+        ],
+        "title": "MonoFontSet",
+        "type": "object"
+      },
+      "ThemeData": {
+        "properties": {
+          "majorFont": {
+            "$ref": "#/components/schemas/FontSet"
+          },
+          "minorFont": {
+            "$ref": "#/components/schemas/FontSet"
+          },
+          "monoFont": {
+            "$ref": "#/components/schemas/MonoFontSet"
+          },
+          "options": {
+            "$ref": "#/components/schemas/ThemeOptions"
+          }
+        },
+        "required": [
+          "majorFont",
+          "minorFont",
+          "monoFont",
+          "options"
+        ],
+        "title": "ThemeData",
+        "type": "object"
+      },
+      "ThemeOptions": {
+        "properties": {
+          "bodyFirstLevelStyle": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "preserveMono": {
+            "default": false,
+            "type": "boolean"
+          },
+          "titleBold": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "bodyFirstLevelStyle",
+          "titleBold"
+        ],
+        "title": "ThemeOptions",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "pptx-tool",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/config": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiConfigGetConfig",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppConfig"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "GetConfig"
+      }
+    },
+    "/api/fix-font": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiFixFontFixFont",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/FixFontForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FixFontResult"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "FixFont"
+      }
+    },
+    "/api/font-theme": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiFontThemeFontTheme",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FontThemeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "FontTheme"
+      }
+    },
+    "/api/font-theme/install": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiFontThemeInstallInstallFontThemeHandler",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstallFontThemeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallFontThemeResult"
+                }
+              }
+            },
+            "description": "Document created, URL follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "InstallFontThemeHandler"
+      }
+    },
+    "/api/monospace-fonts": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiMonospaceFontsListMonospaceFonts",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "ListMonospaceFonts"
+      }
+    },
+    "/api/themes": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiThemesListThemes",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BundledThemeInfo"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "ListThemes"
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ]
+}
