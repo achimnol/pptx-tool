@@ -189,7 +189,11 @@ def _get_font_theme_dir() -> Path:
 
 
 class FontThemeError(RuntimeError):
-    """Raised when an Office font theme cannot be installed."""
+    """Raised when an Office font theme cannot be installed, with the message, the path and the reason as args."""
+
+    def __str__(self) -> str:
+        message, *details = (str(arg) for arg in self.args if arg is not None)
+        return f"{message} ({', '.join(details)})" if details else message
 
 
 class FontThemeExistsError(FontThemeError, FileExistsError):

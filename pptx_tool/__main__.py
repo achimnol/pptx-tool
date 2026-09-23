@@ -1,6 +1,7 @@
 import argparse
 import contextlib
 import dataclasses
+import logging
 import sys
 from pathlib import Path
 
@@ -67,6 +68,9 @@ def do_serve(args: argparse.Namespace) -> None:
         # Accept any Host header when serving on a public address, as the host names are unknown.
         allowed_hosts=loopback_host_headers(args.port) if is_loopback else (),
     )
+    # Keep the processing logs of each request (with the user's font names) in its response only,
+    # instead of also echoing them through the server's root log handler.
+    logging.getLogger("pptx_tool").propagate = False
     uvicorn.run(create_app(web_config), host=args.host, port=args.port)
 
 
@@ -158,7 +162,7 @@ def main() -> None:
     except (ThemeError, InvalidFontThemeNameError) as e:
         parser.error(str(e))
     except FontThemeError as e:
-        sys.exit(" ".join(str(arg) for arg in e.args))
+        sys.exit(str(e))
 
 
 if __name__ == "__main__":

@@ -1,5 +1,4 @@
 import importlib.metadata
-import logging
 
 from litestar import Litestar, MediaType, Router, get
 from litestar.config.allowed_hosts import AllowedHostsConfig
@@ -41,9 +40,6 @@ def _get_version() -> str:
 
 def create_app(web_config: WebConfig | None = None) -> Litestar:
     config = web_config or WebConfig()
-    # Keep the processing logs of each request (with the user's font names) in the response only,
-    # instead of also echoing them through the server's root log handler.
-    logging.getLogger("pptx_tool").propagate = False
 
     def provide_web_config() -> WebConfig:
         return config

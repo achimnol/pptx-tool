@@ -72,3 +72,16 @@ def test_install_font_theme_rejects_unsafe_name(tmp_path: Path) -> None:
     with pytest.raises(InvalidFontThemeNameError):
         install_font_theme(b"<xml/>", "../evil", theme_dir=tmp_path)
     assert not (tmp_path.parent / "evil.xml").exists()
+
+
+@pytest.mark.parametrize(
+    "args,expected",
+    [
+        (("Message.",), "Message."),
+        (("Message.", "/a/b.xml"), "Message. (/a/b.xml)"),
+        (("Message.", "/a/b.xml", None), "Message. (/a/b.xml)"),
+        (("Message.", "/a/b.xml", "Permission denied"), "Message. (/a/b.xml, Permission denied)"),
+    ],
+)
+def test_font_theme_error_message(args: tuple[str | None, ...], expected: str) -> None:
+    assert str(FontThemeError(*args)) == expected

@@ -1,5 +1,5 @@
 import base64
-import re
+import os
 import tempfile
 import zipfile
 from pathlib import Path, PurePath
@@ -50,7 +50,6 @@ from .models import (
 )
 
 _COPY_CHUNK_SIZE = 1024 * 1024
-_TEMP_PATH_PATTERN = re.compile(r"[^\s'\"]*pptx-font-fix-[^\s/\\]+[/\\]")
 
 
 def same_origin_guard(connection: ASGIConnection[Any, Any, Any, Any], _: BaseRouteHandler) -> None:
@@ -60,6 +59,13 @@ def same_origin_guard(connection: ASGIConnection[Any, Any, Any, Any], _: BaseRou
         return
     if urlsplit(origin).netloc != connection.headers.get("host"):
         raise PermissionDeniedException("Cross-origin requests are not allowed.")
+
+
+def _hide_dir(message: str, directory: str) -> str:
+    """Remove the server's temporary directory from an error message, leaving the paths inside it."""
+    for path in {directory, os.path.realpath(directory)}:
+        message = message.replace(path + os.sep, "").replace(path, "")
+    return message
 
 
 def _validate_font_theme_name(name: str) -> str:
@@ -110,15 +116,20 @@ def fix_font(
                 f.write(chunk)
         with capture_log() as log:
             try:
-                fix_pptx(src_path, dst_path, theme_info, limits=web_config.archive_limits)
+                fix_pptx(
+                    src_path,
+                    dst_path,
+                    theme_info,
+                    limits=web_config.archive_limits,
+                    work_dir=Path(tmp_dir) / "work",
+                )
             except (zipfile.BadZipFile, UnsafeArchiveError) as e:
                 raise ValidationException(detail=f"Not a valid pptx file: {e}") from e
-            except (OSError, etree.XMLSyntaxError, LookupError, TypeError, ValueError, AttributeError) as e:
-                # Hide the server's temporary extraction directory from the message.
-                message = _TEMP_PATH_PATTERN.sub("", str(e))
+            # ValueError comes from unexpected nodes such as XML comments in the text properties.
+            except (OSError, etree.XMLSyntaxError, LookupError, ValueError) as e:
                 raise HTTPException(
                     status_code=HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail=f"Failed to process the presentation: {message}",
+                    detail=f"Failed to process the presentation: {_hide_dir(str(e), tmp_dir)}",
                 ) from e
         content = dst_path.read_bytes()
     return FixFontResult(
@@ -163,7 +174,7 @@ def install_font_theme_handler(
     except FontThemeError as e:
         raise HTTPException(
             status_code=HTTP_503_SERVICE_UNAVAILABLE,
-            detail=" ".join(str(arg) for arg in e.args),
+            detail=str(e),
         ) from e
     return InstallFontThemeResult(path=str(path))
 

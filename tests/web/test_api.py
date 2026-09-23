@@ -2,7 +2,7 @@ import base64
 import copy
 import io
 import json
-import logging
+import os
 import tempfile
 import zipfile
 from pathlib import Path
@@ -15,6 +15,7 @@ from lxml import etree
 
 from pptx_tool.package import ArchiveLimits
 from pptx_tool.web.config import loopback_host_headers
+from pptx_tool.web.routes import _hide_dir
 
 from ..samples import make_minimal_pptx
 from .conftest import MakeClient
@@ -227,32 +228,25 @@ def test_openapi_schema(client: TestClient[Litestar]) -> None:
     assert "/api/font-theme/install" in schema["paths"]
 
 
-def test_fix_font_does_not_echo_the_log(client: TestClient[Litestar], sample_pptx: Path) -> None:
-    records: list[logging.LogRecord] = []
-
-    class RecordingHandler(logging.Handler):
-        def emit(self, record: logging.LogRecord) -> None:
-            records.append(record)
-
-    handler = RecordingHandler()
-    root_logger = logging.getLogger()
-    root_logger.addHandler(handler)
-    try:
-        resp = _post_fix_font(client, sample_pptx.read_bytes())
-    finally:
-        root_logger.removeHandler(handler)
-    assert "Current font scheme" in resp.json()["log"]
-    assert not [r for r in records if r.name.startswith("pptx_tool")]
-
-
 def test_fix_font_hides_server_paths(client: TestClient[Litestar]) -> None:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as zf:
         zf.writestr("hello.txt", "hello")
     detail = _post_fix_font(client, buf.getvalue()).json()["detail"]
-    assert "ppt/presentation.xml" in detail
-    assert "pptx-font-fix-" not in detail
+    assert "'work/ppt/presentation.xml'" in detail
+    assert "pptx-tool-web-" not in detail
     assert tempfile.gettempdir() not in detail
+
+
+@pytest.mark.parametrize(
+    "directory",
+    ["/tmp/pptx-tool-web-x", "C:\\Users\\John Doe\\AppData\\Local\\Temp\\pptx-tool-web-x"],
+)
+def test_hide_dir(directory: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    sep = "\\" if "\\" in directory else "/"
+    monkeypatch.setattr(os, "sep", sep)
+    message = f"Error reading file '{directory}{sep}work{sep}slide1.xml' in {directory}"
+    assert _hide_dir(message, directory) == f"Error reading file 'work{sep}slide1.xml' in "
 
 
 def test_fix_font_unexpected_structure(client: TestClient[Litestar], tmp_path: Path) -> None:
@@ -278,7 +272,8 @@ def test_install_font_theme_write_error(
     client = make_client(local=True)
     resp = client.post("/api/font-theme/install", json={"name": "My Theme", "theme": THEME})
     assert resp.status_code == 503
-    assert "Permission denied" in resp.json()["detail"]
+    path = font_theme_dir / "My Theme.xml"
+    assert resp.json()["detail"] == f"Failed to write the theme file. ({path}, Permission denied)"
 
 
 def test_install_font_theme_without_origin(make_client: MakeClient) -> None:

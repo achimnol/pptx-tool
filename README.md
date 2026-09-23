@@ -75,9 +75,9 @@ $ uv run pptx-tool serve
 Then open http://127.0.0.1:8000 in the browser.  The server only listens on the loopback
 interface by default; use `--host` and `--port` to change it, and `--max-upload-mb` to change the
 upload size limit (50 MiB by default).
-The server checks the `Host` header against DNS rebinding, so access it via `127.0.0.1`,
-`localhost` or `[::1]` with the same port as the server, not through a port-forwarding tunnel
-or a reverse proxy with a different port.
+When listening on a loopback address, the server checks the `Host` header against DNS rebinding,
+so access it via `127.0.0.1`, `localhost` or `[::1]` with the same port as the server, not through
+a port-forwarding tunnel or a reverse proxy with a different port.
 
 Installing Office font themes from the web UI writes into the Office theme directory of the
 machine running the server, so it is available only when the server runs with `--local`, which
