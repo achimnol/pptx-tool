@@ -11,6 +11,7 @@ import {useEffect, useMemo, useReducer, useState} from 'react';
 import type {FieldError} from './api/errors';
 import type {BundledThemeInfo} from './api/types';
 import {FixFontsPanel} from './fix-fonts/FixFontsPanel';
+import {FontThemePanel} from './font-theme/FontThemePanel';
 import {useAppConfig, useBundledThemes, useMonospaceFonts} from './hooks/resources';
 import {ThemeEditor} from './theme-editor/ThemeEditor';
 import {
@@ -20,7 +21,7 @@ import {
 } from './theme-editor/themeState';
 import {validateTheme} from './theme-editor/validateTheme';
 
-type TaskTab = 'fix-fonts';
+type TaskTab = 'fix-fonts' | 'font-theme';
 
 const DEFAULT_PRESET_ID = 'pretendard';
 
@@ -88,6 +89,14 @@ export function App() {
             onFieldErrors={setServerFieldErrors}
           />
         )}
+        {tab === 'font-theme' && (
+          <FontThemePanel
+            theme={editorState.theme}
+            isThemeValid={validation?.ok ?? false}
+            isLocal={config.data?.local ?? false}
+            onFieldErrors={setServerFieldErrors}
+          />
+        )}
         <ThemeEditor
           state={editorState}
           dispatch={(action) => {
@@ -115,6 +124,7 @@ export function App() {
           hasDivider
         >
           <Tab value="fix-fonts" label="Fix fonts" />
+          <Tab value="font-theme" label="Office font theme" />
         </TabList>
         {content}
       </VStack>

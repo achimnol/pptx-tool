@@ -123,7 +123,7 @@ export function ThemeEditor({
 
       <VStack gap={3}>
         <Heading level={3}>Fonts</Heading>
-        <Grid columns={3} gap={3}>
+        <Grid columns={{minWidth: 150, max: 3, repeat: 'fill'}} gap={3}>
           {FONT_SETS.flatMap(({key: set, label, scripts}) =>
             GRID_SCRIPTS.map((script) =>
               scripts.includes(script) ? (

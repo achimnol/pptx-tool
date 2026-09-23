@@ -7,7 +7,7 @@ export interface ProcessLogProps {
 
 export function ProcessLog({log}: ProcessLogProps) {
   return (
-    <Collapsible trigger="Processing log">
+    <Collapsible trigger="Processing log" defaultIsOpen={false}>
       <CodeBlock code={log.trimEnd()} language="plaintext" width="100%" size="sm" />
     </Collapsible>
   );

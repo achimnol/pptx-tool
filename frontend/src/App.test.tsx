@@ -107,3 +107,14 @@ describe('App', () => {
     expect(await screen.findByText('Failed to connect to the server')).toBeInTheDocument();
   });
 });
+
+describe('App tabs', () => {
+  it('keeps the edited theme when switching tabs', async () => {
+    renderApp();
+    const input = await waitForEditor();
+    await userEvent.type(input, ' X');
+    await userEvent.click(screen.getByRole('tab', {name: 'Office font theme'}));
+    expect(await screen.findByRole('textbox', {name: /Font theme name/})).toBeInTheDocument();
+    expect(screen.getByRole('textbox', {name: /Heading · Latin/})).toHaveValue('Major Sans X');
+  });
+});
