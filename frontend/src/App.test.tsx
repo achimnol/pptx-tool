@@ -91,10 +91,12 @@ describe('App', () => {
     renderApp();
     await waitForEditor();
     await userEvent.click(screen.getByRole('button', {name: 'Where to download the fonts?'}));
-    const link = await screen.findByRole('link', {name: /^Pretendard/});
-    expect(link).toHaveAttribute('href', 'https://cactus.tistory.com/306');
-    expect(link).toHaveAttribute('target', '_blank');
-    expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'));
+    for (const {name, href} of FONT_DOWNLOADS) {
+      const link = await screen.findByRole('link', {name: new RegExp(`^${name}`)});
+      expect(link).toHaveAttribute('href', href);
+      expect(link).toHaveAttribute('target', '_blank');
+      expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'));
+    }
     expect(screen.getAllByRole('link', {name: /opens in new tab/})).toHaveLength(
       FONT_DOWNLOADS.length,
     );
