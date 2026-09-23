@@ -44,7 +44,7 @@ def load_theme(data: Mapping[str, Any]) -> Theme:
 
     All keys are required except `options.preserveMono`, which defaults to false.
     `options.bodyFirstLevelStyle` must be present but may be null.
-    Unknown keys are ignored.
+    Unknown keys are ignored, including the top-level `name` of the bundled themes.
     """
     errors: list[ThemeFieldError] = []
 
@@ -104,7 +104,10 @@ def load_theme(data: Mapping[str, Any]) -> Theme:
 
 
 def dump_theme(theme_info: Theme) -> dict[str, Any]:
-    """Serialize a Theme into the camelCase theme JSON structure accepted by `load_theme()`."""
+    """Serialize a Theme into the camelCase theme JSON structure accepted by `load_theme()`.
+
+    The display name of a bundled theme is not part of a Theme, so it is never included.
+    """
     return {
         "majorFont": {
             "latin": theme_info.major_font_latin,
@@ -149,14 +152,22 @@ def _bundled_theme_dir() -> Traversable:
 
 
 def list_bundled_themes() -> list[BundledTheme]:
-    """List the themes shipped with the package, sorted by their ids (file stems)."""
+    """List the themes shipped with the package, sorted by their ids (file stems).
+
+    Each bundled theme file carries its display name in the top-level `name` key.
+    """
     themes: list[BundledTheme] = []
     for entry in _bundled_theme_dir().iterdir():
         if not entry.name.endswith(".json"):
             continue
         theme_id = entry.name.removesuffix(".json")
-        name = theme_id.replace("-", " ").title()
-        themes.append(BundledTheme(theme_id, name, load_theme(json.loads(entry.read_text(encoding="utf-8")))))
+        data = json.loads(entry.read_text(encoding="utf-8"))
+        name = data.get("name") if isinstance(data, Mapping) else None
+        if not isinstance(name, str) or not name.strip():
+            raise ThemeError([
+                ThemeFieldError("name", f"bundled theme {theme_id!r} must define a non-empty display name"),
+            ])
+        themes.append(BundledTheme(theme_id, name, load_theme(data)))
     return sorted(themes, key=lambda t: t.id)
 
 
@@ -169,5 +180,5 @@ def resolve_theme_arg(value: str) -> Theme:
     if value in bundled:
         return bundled[value].theme
     raise ThemeError([
-        ThemeFieldError("", f"{value!r} is neither a theme file nor a bundled theme ({', '.join(sorted(bundled))})")
+        ThemeFieldError("", f"{value!r} is neither a theme file nor a bundled theme id ({', '.join(sorted(bundled))})")
     ])
