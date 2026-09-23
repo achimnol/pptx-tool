@@ -62,6 +62,8 @@ def do_serve(args: argparse.Namespace) -> None:
     is_loopback = args.host in LOOPBACK_ADDRESSES
     if args.local and not is_loopback:
         sys.exit("The --local option is allowed only when serving on a loopback address such as 127.0.0.1.")
+    if args.tmp_quota_mb < 2 * args.max_upload_mb:
+        sys.exit("The --tmp-quota-mb option must be at least twice --max-upload-mb to process an upload of the limit.")
     web_config = WebConfig(
         local=args.local,
         max_upload_size=args.max_upload_mb * 1024 * 1024,
@@ -165,8 +167,8 @@ def main() -> None:
         "--tmp-quota-mb",
         type=int,
         default=1024,
-        help="The total size limit of --tmp-dir in MiB. "
-        "The files of the oldest finished requests are deleted to make room. (default: %(default)s)",
+        help="The total size limit of --tmp-dir in MiB, at least twice --max-upload-mb. "
+        "Any leftover files of earlier requests are deleted to make room. (default: %(default)s)",
     )
     parser_serve.set_defaults(func=do_serve)
 

@@ -206,10 +206,16 @@ def test_serve_storage_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -
     captured: dict[str, Any] = {}
     monkeypatch.setattr(web_app, "create_app", lambda web_config: captured.setdefault("config", web_config))
     monkeypatch.setattr(uvicorn, "run", lambda app, **kwargs: None)
-    _run_cli(monkeypatch, "serve", "--tmp-dir", str(tmp_path / "work"), "--tmp-quota-mb", "5")
-    assert captured["config"].max_upload_size == 200 * 1024 * 1024
+    _run_cli(monkeypatch, "serve", "--tmp-dir", str(tmp_path / "work"), "--tmp-quota-mb", "5", "--max-upload-mb", "2")
+    assert captured["config"].max_upload_size == 2 * 1024 * 1024
     assert captured["config"].tmp_dir == tmp_path / "work"
     assert captured["config"].tmp_quota == 5 * 1024 * 1024
+
+
+def test_serve_refuses_small_quota(monkeypatch: pytest.MonkeyPatch) -> None:
+    pytest.importorskip("litestar")
+    with pytest.raises(SystemExit, match="--tmp-quota-mb"):
+        _run_cli(monkeypatch, "serve", "--tmp-quota-mb", "300")
 
 
 def test_generate_font_theme_exists(

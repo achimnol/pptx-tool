@@ -69,13 +69,17 @@ def _hide_dir(message: str, directory: str) -> str:
     return message
 
 
-def _reserve_storage(storage: RequestStorage, needed: int) -> None:
+def _reserve_storage(storage: RequestStorage, req_dir: Path, needed: int) -> None:
     try:
-        storage.reserve(needed)
+        storage.reserve(req_dir, needed)
     except RequestTooLargeError as e:
         raise HTTPException(status_code=HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=str(e)) from e
     except StorageFullError as e:
-        raise HTTPException(status_code=HTTP_503_SERVICE_UNAVAILABLE, detail=f"{e} Try again later.") from e
+        raise HTTPException(
+            status_code=HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"{e} Try again later.",
+            headers={"Retry-After": "5"},
+        ) from e
 
 
 def _declared_size(path: Path) -> int:
@@ -131,15 +135,15 @@ def fix_font(
     with storage.request_dir() as req_dir:
         src_path = req_dir / "src.pptx"
         dst_path = req_dir / "dst.pptx"
-        _reserve_storage(storage, upload_size)
+        _reserve_storage(storage, req_dir, upload_size)
         with src_path.open("wb") as f:
             shutil.copyfileobj(upload, f, _COPY_CHUNK_SIZE)
         try:
             declared_size = _declared_size(src_path)
-        except zipfile.BadZipFile as e:
+        except (zipfile.BadZipFile, EOFError, ValueError) as e:
             raise ValidationException(detail=f"Not a valid pptx file: {e}") from e
-        # The extracted package plus the rebuilt pptx, which is bounded by the upload size.
-        _reserve_storage(storage, declared_size + upload_size)
+        # The upload, the extracted package, and the rebuilt pptx, which is bounded by the upload size.
+        _reserve_storage(storage, req_dir, 2 * upload_size + declared_size)
         with capture_log() as log:
             try:
                 fix_pptx(

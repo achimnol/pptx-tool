@@ -163,11 +163,14 @@ def test_fix_font_cleans_stale_dirs_on_startup(make_client: MakeClient, tmp_dir:
 
 def test_fix_font_evicts_oldest_request(make_client: MakeClient, sample_pptx: Path, tmp_dir: Path) -> None:
     content = sample_pptx.read_bytes()
-    client = make_client(tmp_quota=len(content) * 4)
-    # A finished request left behind after the startup cleanup, which occupies most of the quota.
+    with zipfile.ZipFile(sample_pptx) as zf:
+        declared = sum(m.file_size for m in zf.infolist())
+    quota = 2 * len(content) + declared + 1000
+    client = make_client(tmp_quota=quota)
+    # A leftover of a crashed request, which leaves room for the upload but not for processing it.
     old = tmp_dir / "req-old"
     old.mkdir()
-    (old / "dst.pptx").write_bytes(b"x" * len(content) * 3)
+    (old / "dst.pptx").write_bytes(b"x" * (quota - len(content) - 1))
     resp = _post_fix_font(client, content)
     assert resp.status_code == 200, resp.text
     assert not old.exists()
@@ -183,12 +186,13 @@ def test_fix_font_exceeds_quota(make_client: MakeClient, sample_pptx: Path) -> N
 def test_fix_font_storage_full(
     client: TestClient[Litestar], sample_pptx: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def reserve(self: RequestStorage, needed: int) -> None:
+    def reserve(self: RequestStorage, request_dir: Path, needed: int) -> None:
         raise StorageFullError("The temporary storage is occupied by the requests in progress.")
 
     monkeypatch.setattr(RequestStorage, "reserve", reserve)
     resp = _post_fix_font(client, sample_pptx.read_bytes())
     assert resp.status_code == 503
+    assert resp.headers["retry-after"] == "5"
     assert "Try again later" in resp.json()["detail"]
 
 

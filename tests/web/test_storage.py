@@ -1,4 +1,6 @@
 import os
+import stat
+import threading
 from pathlib import Path
 
 import pytest
@@ -44,37 +46,89 @@ def test_reserve_evicts_oldest_first(tmp_path: Path) -> None:
     storage = RequestStorage(tmp_path, quota=3000)
     old = _make_old_dir(tmp_path, "req-old", 1000, age=200)
     mid = _make_old_dir(tmp_path, "req-mid", 1000, age=100)
-    storage.reserve(1000)
-    assert old.exists() and mid.exists()
-    storage.reserve(2000)
-    assert not old.exists() and mid.exists()
-    storage.reserve(3000)
-    assert not mid.exists()
+    with storage.request_dir() as req_dir:
+        storage.reserve(req_dir, 1000)
+        assert old.exists() and mid.exists()
+        storage.reserve(req_dir, 2000)
+        assert not old.exists() and mid.exists()
+        storage.reserve(req_dir, 3000)
+        assert not mid.exists()
+
+
+def test_reserve_replaces_previous_reservation(tmp_path: Path) -> None:
+    storage = RequestStorage(tmp_path, quota=3000)
+    with storage.request_dir() as req_dir:
+        storage.reserve(req_dir, 2000)
+        # Not an increment: the second reservation is the whole footprint.
+        storage.reserve(req_dir, 2500)
+        (req_dir / "src.pptx").write_bytes(b"x" * 1000)
+        # The written bytes are covered by the reservation, not added to it.
+        storage.reserve(req_dir, 3000)
 
 
 def test_reserve_rejects_oversized_request(tmp_path: Path) -> None:
     storage = RequestStorage(tmp_path, quota=1000)
     old = _make_old_dir(tmp_path, "req-old", 10, age=10)
-    with pytest.raises(RequestTooLargeError):
-        storage.reserve(1001)
+    with storage.request_dir() as req_dir, pytest.raises(RequestTooLargeError):
+        storage.reserve(req_dir, 1001)
     assert old.exists()
 
 
-def test_reserve_keeps_active_dirs(tmp_path: Path) -> None:
+def test_reserve_counts_concurrent_reservations(tmp_path: Path) -> None:
     storage = RequestStorage(tmp_path, quota=3000)
-    stale = _make_old_dir(tmp_path, "req-stale", 1000, age=10)
-    with storage.request_dir() as req_dir:
-        (req_dir / "src.pptx").write_bytes(b"x" * 1500)
-        with pytest.raises(StorageFullError):
-            storage.reserve(2000)
+    stale = _make_old_dir(tmp_path, "req-stale", 1500, age=10)
+    with storage.request_dir() as first, storage.request_dir() as second:
+        storage.reserve(first, 2000)
         assert not stale.exists()
-        assert req_dir.exists()
+        # Nothing on disk yet, but the first request's reservation is still counted.
+        with pytest.raises(StorageFullError):
+            storage.reserve(second, 2000)
+        assert first.exists() and second.exists()
+        storage.reserve(second, 1000)
 
 
-@pytest.mark.skipif(not hasattr(os, "getuid"), reason="POSIX only")
+def test_reserve_never_evicts_requests_in_progress(tmp_path: Path) -> None:
+    storage = RequestStorage(tmp_path, quota=3000)
+    started = threading.Event()
+    release = threading.Event()
+
+    def other_request() -> None:
+        with storage.request_dir() as req_dir:
+            (req_dir / "src.pptx").write_bytes(b"x" * 2000)
+            started.set()
+            release.wait()
+
+    thread = threading.Thread(target=other_request)
+    thread.start()
+    try:
+        started.wait()
+        with storage.request_dir() as req_dir, pytest.raises(StorageFullError):
+            storage.reserve(req_dir, 2000)
+        assert list(storage.root.iterdir()) != []
+    finally:
+        release.set()
+        thread.join()
+    assert list(storage.root.iterdir()) == []
+
+
 def test_root_must_not_be_symlink(tmp_path: Path) -> None:
     (tmp_path / "real").mkdir()
     (tmp_path / "link").symlink_to(tmp_path / "real")
     storage = RequestStorage(tmp_path / "link", quota=1000)
     with pytest.raises(StorageError):
         storage.cleanup_stale()
+
+
+def test_root_must_be_a_directory(tmp_path: Path) -> None:
+    (tmp_path / "file").write_bytes(b"x")
+    storage = RequestStorage(tmp_path / "file", quota=1000)
+    with pytest.raises(StorageError):
+        storage.cleanup_stale()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX permissions")
+def test_root_is_made_private(tmp_path: Path) -> None:
+    root = tmp_path / "shared"
+    root.mkdir(mode=0o755)
+    RequestStorage(root, quota=1000).cleanup_stale()
+    assert stat.S_IMODE(root.stat().st_mode) == 0o700
