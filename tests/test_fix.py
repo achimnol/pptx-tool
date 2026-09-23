@@ -1,11 +1,10 @@
-import argparse
 import json
 from pathlib import Path
 
 import pytest
 from lxml import etree
 
-from pptx_tool.__main__ import _load_theme, main
+from pptx_tool.__main__ import main
 from pptx_tool.fix import (
     _has_monospace_font,
     _match_monospace_font,
@@ -18,11 +17,10 @@ from pptx_tool.fix import (
     xmlns,
     xpath_elements,
 )
+from pptx_tool.theme import BundledTheme, list_bundled_themes
 from pptx_tool.types import Theme
 
 from .conftest import MakeTheme, ParseFragment
-
-THEMES_DIR = Path(__file__).parent.parent / "themes"
 
 
 def _parse_slide(body: str) -> etree._ElementTree:
@@ -204,11 +202,10 @@ def test_normalize_slide_font_preserves_monospace_shape(make_theme: MakeTheme) -
     assert [elem.get("typeface") for elem in latin_elems] == ["JetBrains Mono", "+mn-lt"]
 
 
-@pytest.mark.parametrize("theme_path", sorted(THEMES_DIR.glob("*.json")), ids=lambda p: p.name)
-def test_bundled_themes_load_without_preserve_mono_key(theme_path: Path) -> None:
+@pytest.mark.parametrize("bundled_theme", list_bundled_themes(), ids=lambda t: t.id)
+def test_bundled_themes_load_without_preserve_mono_key(bundled_theme: BundledTheme) -> None:
     """Themes that omit 'preserveMono' must keep loading, with the option off."""
-    theme_info = _load_theme(argparse.Namespace(theme=theme_path))
-    assert theme_info.preserve_mono is False
+    assert bundled_theme.theme.preserve_mono is False
 
 
 @pytest.mark.parametrize(
@@ -233,14 +230,10 @@ def test_cli_overrides_theme_preserve_mono(
     )
     # Stub out the pipeline so the real do_fix_pptx runs and we can see the Theme it builds.
     captured: list[Theme] = []
-    monkeypatch.setattr("pptx_tool.__main__.extract_pptx", lambda src, dst: None)
-    monkeypatch.setattr("pptx_tool.__main__.build_pptx", lambda src, dst: None)
     monkeypatch.setattr(
-        "pptx_tool.__main__.fix_theme_font",
-        lambda work_path, theme_info: captured.append(theme_info),
+        "pptx_tool.__main__.fix_pptx",
+        lambda src, dst, theme_info: captured.append(theme_info),
     )
-    for func_name in ("normalize_master_fonts", "normalize_layout_fonts", "normalize_slide_fonts"):
-        monkeypatch.setattr(f"pptx_tool.__main__.{func_name}", lambda work_path, theme_info: None)
     monkeypatch.setattr(
         "sys.argv",
         ["pptx-tool", "fix-font", "--theme", str(theme_path), *argv, "src.pptx", "dst.pptx"],

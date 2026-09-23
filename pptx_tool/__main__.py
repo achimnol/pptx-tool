@@ -1,36 +1,16 @@
 import argparse
+import contextlib
 import dataclasses
-import json
-import tempfile
+import logging
+import sys
 from pathlib import Path
 
-from .fix import (
-    fix_theme_font,
-    generate_font_theme,
-    normalize_layout_fonts,
-    normalize_master_fonts,
-    normalize_slide_fonts,
-)
+from .fix import FontThemeError, InvalidFontThemeNameError, generate_font_theme
+from .log import cli_logging
 from .package import build_pptx, extract_pptx
+from .pipeline import fix_pptx
+from .theme import ThemeError, resolve_theme_arg
 from .types import Theme
-
-
-def _load_theme(args: argparse.Namespace) -> Theme:
-    theme_data = json.loads(args.theme.read_text())
-    theme_info = Theme(
-        major_font_latin=theme_data["majorFont"]["latin"],
-        major_font_hangul=theme_data["majorFont"]["hangul"],
-        major_font_symbol=theme_data["majorFont"]["symbol"],
-        minor_font_latin=theme_data["minorFont"]["latin"],
-        minor_font_hangul=theme_data["minorFont"]["hangul"],
-        minor_font_symbol=theme_data["minorFont"]["symbol"],
-        mono_font_latin=theme_data["monoFont"]["latin"],
-        mono_font_hangul=theme_data["monoFont"]["hangul"],
-        title_bold=theme_data["options"]["titleBold"],
-        body_first_level_style=theme_data["options"]["bodyFirstLevelStyle"],
-        preserve_mono=theme_data["options"].get("preserveMono", False),
-    )
-    return theme_info
 
 
 def _resolve_preserve_mono(theme_info: Theme, args: argparse.Namespace) -> Theme:
@@ -55,20 +35,43 @@ def do_build_pptx(args: argparse.Namespace) -> None:
 
 
 def do_fix_pptx(args: argparse.Namespace) -> None:
-    theme_info = _resolve_preserve_mono(_load_theme(args), args)
-    with tempfile.TemporaryDirectory(prefix="pptx-font-fix-") as tmp_dir:
-        tmp_path = Path(tmp_dir)
-        extract_pptx(args.src, tmp_path)
-        fix_theme_font(tmp_path, theme_info)
-        normalize_master_fonts(tmp_path, theme_info)
-        normalize_layout_fonts(tmp_path, theme_info)
-        normalize_slide_fonts(tmp_path, theme_info)
-        build_pptx(tmp_path, args.dst)
+    theme_info = _resolve_preserve_mono(resolve_theme_arg(args.theme), args)
+    fix_pptx(args.src, args.dst, theme_info)
 
 
 def do_generate_font_theme(args: argparse.Namespace) -> None:
-    theme_info = _load_theme(args)
+    theme_info = resolve_theme_arg(args.theme)
     generate_font_theme(theme_info, args.name, overwrite=args.overwrite)
+
+
+_WEB_EXTRA_HINT = (
+    "The web UI requires the 'web' extra. Install it with `uv sync --extra web` or `pip install 'pptx-tool[web]'`."
+)
+
+
+def do_serve(args: argparse.Namespace) -> None:
+    try:
+        import uvicorn
+
+        from .web.app import create_app
+        from .web.config import LOOPBACK_ADDRESSES, WebConfig, loopback_host_headers
+    except ImportError as e:
+        if e.name is not None and e.name.split(".")[0] in {"litestar", "uvicorn", "msgspec"}:
+            sys.exit(_WEB_EXTRA_HINT)
+        raise
+    is_loopback = args.host in LOOPBACK_ADDRESSES
+    if args.local and not is_loopback:
+        sys.exit("The --local option is allowed only when serving on a loopback address such as 127.0.0.1.")
+    web_config = WebConfig(
+        local=args.local,
+        max_upload_size=args.max_upload_mb * 1024 * 1024,
+        # Accept any Host header when serving on a public address, as the host names are unknown.
+        allowed_hosts=loopback_host_headers(args.port) if is_loopback else (),
+    )
+    # Keep the processing logs of each request (with the user's font names) in its response only,
+    # instead of also echoing them through the server's root log handler.
+    logging.getLogger("pptx_tool").propagate = False
+    uvicorn.run(create_app(web_config), host=args.host, port=args.port)
 
 
 def main() -> None:
@@ -95,7 +98,9 @@ def main() -> None:
         "fix-font",
         help="Fix up the font theme and normalize all slide objects to use major/minor fonts correctly in a pptx file.",
     )
-    parser_fix.add_argument("--theme", type=Path, required=True, help="The path to a theme json file.")
+    parser_fix.add_argument(
+        "--theme", required=True, help="The path to a theme json file, or the name of a bundled theme."
+    )
     parser_fix.add_argument(
         "--preserve-mono",
         action=argparse.BooleanOptionalAction,
@@ -117,7 +122,9 @@ def main() -> None:
         "It also does not support 'body-first-line-style' and 'preserveMono' options. "
         "To use the new font theme, you must restart Office apps to take effect.",
     )
-    parser_gen.add_argument("--theme", type=Path, required=True, help="The path to a theme json file.")
+    parser_gen.add_argument(
+        "--theme", required=True, help="The path to a theme json file, or the name of a bundled theme."
+    )
     parser_gen.add_argument(
         "--overwrite", action="store_true", default=False, help="Overwrite the Office font theme file if already exists"
     )
@@ -126,8 +133,36 @@ def main() -> None:
     )
     parser_gen.set_defaults(func=do_generate_font_theme)
 
+    parser_serve = subparsers.add_parser(
+        "serve",
+        help="Run the web UI server. It requires the 'web' extra.",
+    )
+    parser_serve.add_argument("--host", default="127.0.0.1", help="The address to listen on. (default: %(default)s)")
+    parser_serve.add_argument("--port", type=int, default=8000, help="The port to listen on. (default: %(default)s)")
+    parser_serve.add_argument(
+        "--local",
+        action="store_true",
+        default=False,
+        help="Enable the features that modify this machine, such as installing Office font themes. "
+        "It is allowed only when listening on a loopback address.",
+    )
+    parser_serve.add_argument(
+        "--max-upload-mb",
+        type=int,
+        default=50,
+        help="The maximum size of uploaded pptx files in MiB. (default: %(default)s)",
+    )
+    parser_serve.set_defaults(func=do_serve)
+
     args = parser.parse_args()
-    args.func(args)
+    try:
+        # The server does not echo the processing logs of each request.
+        with cli_logging() if args.func is not do_serve else contextlib.nullcontext():
+            args.func(args)
+    except (ThemeError, InvalidFontThemeNameError) as e:
+        parser.error(str(e))
+    except FontThemeError as e:
+        sys.exit(str(e))
 
 
 if __name__ == "__main__":

@@ -12,10 +12,11 @@ interpreter and the virtualenv for you.
 
 ```console
 $ uv sync
-$ uv run pptx-tool fix-font --theme=themes/pretendard.json input.pptx output.pptx
+$ uv run pptx-tool fix-font --theme=pretendard input.pptx output.pptx
 ```
 
-Check out the `themes` directory for more theme definitions.
+The `--theme` option takes either the name of a bundled theme, such as `pretendard`, or the path to
+a theme JSON file.  Check out the `pptx_tool/themes` directory for the bundled theme definitions.
 
 By default, the text objects using a known monospace font (see `known_monospace_fonts`
 in `pptx_tool/fix.py`) have their latin/hangul typefaces replaced with the theme's `monoFont`,
@@ -25,7 +26,7 @@ If your slides use monospace fonts deliberately, such as for sample code, you ma
 as-is with the `--preserve-mono` option:
 
 ```console
-$ uv run pptx-tool fix-font --preserve-mono --theme=themes/pretendard.json input.pptx output.pptx
+$ uv run pptx-tool fix-font --preserve-mono --theme=pretendard input.pptx output.pptx
 ```
 
 You may also enable it in the theme file itself, and override it back with `--no-preserve-mono`:
@@ -53,10 +54,38 @@ You may also generate and register an office font theme (shared by all Office ap
 the following command:
 
 ```console
-$ uv run pptx-tool generate-font-theme --theme=themes/pretendard.json 'My Pretendard'
+$ uv run pptx-tool generate-font-theme --theme=pretendard 'My Pretendard'
 ```
 
 After restarting the PowerPoint app, you can choose this theme from the "Design" ribbon.
+
+## Web UI
+
+`pptx-tool` also provides a web UI to fix up presentations and generate Office font themes from
+the browser, editing the theme interactively.  It requires the optional `web` extra and a built
+frontend ([Node.js](https://nodejs.org/) 24 and [pnpm](https://pnpm.io/)):
+
+```console
+$ uv sync --extra web
+$ pnpm -C frontend install
+$ pnpm -C frontend build
+$ uv run pptx-tool serve
+```
+
+Then open http://127.0.0.1:8000 in the browser.  The server only listens on the loopback
+interface by default; use `--host` and `--port` to change it, and `--max-upload-mb` to change the
+upload size limit (50 MiB by default).
+When listening on a loopback address, the server checks the `Host` header against DNS rebinding,
+so access it via `127.0.0.1`, `localhost` or `[::1]` with the same port as the server, not through
+a port-forwarding tunnel or a reverse proxy with a different port.
+
+Installing Office font themes from the web UI writes into the Office theme directory of the
+machine running the server, so it is available only when the server runs with `--local`, which
+is allowed only on a loopback address:
+
+```console
+$ uv run pptx-tool serve --local
+```
 
 ## Known Issues
 
@@ -71,7 +100,7 @@ After restarting the PowerPoint app, you can choose this theme from the "Design"
 ## Development
 
 ```console
-$ uv sync --all-groups
+$ uv sync --all-groups --all-extras
 $ uv run pytest
 ```
 
@@ -94,3 +123,22 @@ $ uv run pre-commit run --all-files
 
 The same checks run in CI for every push and pull request, and the test suite runs against
 Python 3.13 and 3.14.
+
+### Web UI development
+
+Run the backend and the Vite dev server side by side; the dev server proxies the API requests to
+the backend:
+
+```console
+$ uv run pptx-tool serve
+$ pnpm -C frontend dev
+```
+
+The frontend is checked with `pnpm -C frontend typecheck`, `pnpm -C frontend lint` and
+`pnpm -C frontend test`.  The frontend API types are generated from the OpenAPI schema of the
+backend, so regenerate them after changing the API models:
+
+```console
+$ pnpm -C frontend gen:openapi
+$ pnpm -C frontend gen:api
+```

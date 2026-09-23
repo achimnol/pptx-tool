@@ -33,3 +33,6 @@ repos:
         additional_dependencies:
           - lxml-stubs==0.5.1
           - pytest==9.1.1
+          # The optional "web" extra, to type-check pptx_tool.web
+          - litestar==2.24.0
+          - uvicorn==0.53.0

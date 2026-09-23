@@ -1,3 +1,4 @@
+import logging
 import sys
 from pathlib import Path
 from typing import Final, cast
@@ -5,6 +6,8 @@ from typing import Final, cast
 from lxml import etree
 
 from .types import Theme
+
+logger = logging.getLogger(__name__)
 
 xmlns: Final = {
     "a": "http://schemas.openxmlformats.org/drawingml/2006/main",
@@ -74,16 +77,20 @@ def xpath_elements(node: etree._Element | etree._ElementTree, path: str) -> list
 
 def _print_font_scheme(font_scheme: etree._Element, indent: str = "") -> None:
     for font_elem in font_scheme:
-        print(f"{indent}{local_tag(font_elem.tag)}:")
+        logger.info("%s%s:", indent, local_tag(font_elem.tag))
         for prev_typeface in font_elem:
             prev_script_name = local_tag(prev_typeface.tag)
             match prev_script_name:
                 case "font":
-                    print(
-                        f"{indent}  {prev_script_name} ({prev_typeface.get('script')}): {prev_typeface.get('typeface')}"
+                    logger.info(
+                        "%s  %s (%s): %s",
+                        indent,
+                        prev_script_name,
+                        prev_typeface.get("script"),
+                        prev_typeface.get("typeface"),
                     )
                 case _:
-                    print(f"{indent}  {prev_script_name}: {prev_typeface.get('typeface')}")
+                    logger.info("%s  %s: %s", indent, prev_script_name, prev_typeface.get("typeface"))
 
 
 def _fill_font_scheme(target_elem: etree._Element, theme_info: Theme) -> None:
@@ -144,23 +151,23 @@ def fix_theme_font(
         font_scheme_elem = xpath_elements(root_elem, "//a:fontScheme")[0]
 
         # Print out current theme font configuration
-        print(f"Current font scheme: (name={font_scheme_elem.get('name')!r})")
+        logger.info("Current font scheme: (name=%r)", font_scheme_elem.get("name"))
         _print_font_scheme(font_scheme_elem, indent="  ")
 
         _fill_font_scheme(font_scheme_elem, theme_info)
 
-        print(f"New font scheme: (name={font_scheme_elem.get('name')!r})")
+        logger.info("New font scheme: (name=%r)", font_scheme_elem.get("name"))
         _print_font_scheme(font_scheme_elem, indent="  ")
 
         # Write back
         root_elem.write(theme_path)
 
     if theme_info.preserve_mono:
-        print("Preserving the existing monospace fonts as-is.")
+        logger.info("Preserving the existing monospace fonts as-is.")
     else:
-        print("Target monospace font:")
-        print(f"  latin: {theme_info.mono_font_latin}")
-        print(f"  hangul: {theme_info.mono_font_hangul}")
+        logger.info("Target monospace font:")
+        logger.info("  latin: %s", theme_info.mono_font_latin)
+        logger.info("  hangul: %s", theme_info.mono_font_hangul)
 
 
 def _get_font_theme_dir() -> Path:
@@ -181,22 +188,87 @@ def _get_font_theme_dir() -> Path:
             raise RuntimeError("Unsupported OS to auto-detect Microsoft Office's theme directory")
 
 
-def generate_font_theme(theme_info: Theme, theme_name: str, *, overwrite: bool = False) -> None:
-    theme_dir = _get_font_theme_dir()
-    if not theme_dir.is_dir():
-        raise RuntimeError("The office theme directory does not exist.", str(theme_dir))
-    theme_path = theme_dir / f"{theme_name}.xml"
-    if theme_path.exists() and not overwrite:
-        raise RuntimeError("The target theme file already exist.", str(theme_path))
+class FontThemeError(RuntimeError):
+    """Raised when an Office font theme cannot be installed, with the message, the path and the reason as args."""
+
+    def __str__(self) -> str:
+        message, *details = (str(arg) for arg in self.args if arg is not None)
+        return f"{message} ({', '.join(details)})" if details else message
+
+
+class FontThemeExistsError(FontThemeError, FileExistsError):
+    """Raised when installing an Office font theme would overwrite an existing one."""
+
+    def __init__(self, path: Path) -> None:
+        super().__init__("The target theme file already exist.", str(path))
+        self.path = path
+
+
+class InvalidFontThemeNameError(ValueError):
+    """Raised when an Office font theme name is not usable as a file name."""
+
+
+_invalid_font_theme_name_chars: Final = frozenset('/\\:*?"<>|')
+
+
+def validate_font_theme_name(name: str) -> str:
+    """Check that the font theme name is a safe file name on every platform and return it stripped."""
+    name = name.strip()
+    if not name:
+        raise InvalidFontThemeNameError("The font theme name must not be empty.")
+    if len(name) > 100:
+        raise InvalidFontThemeNameError("The font theme name must be at most 100 characters long.")
+    if any(c in _invalid_font_theme_name_chars or ord(c) < 0x20 or ord(c) == 0x7F for c in name):
+        raise InvalidFontThemeNameError(
+            'The font theme name must not contain control characters or any of / \\ : * ? " < > |.'
+        )
+    if name.endswith("."):
+        raise InvalidFontThemeNameError("The font theme name must not end with a dot.")
+    return name
+
+
+def build_font_theme_xml(theme_info: Theme, theme_name: str) -> bytes:
+    """Build the content of an Office font theme definition file."""
     root_elem = etree.Element(
         etree.QName(xmlns["a"], "fontScheme"),
         nsmap={k: v for k, v in xmlns.items() if k == "a"},  # filter only the "a" (drawingml) namespace
     )
     _fill_font_scheme(root_elem, theme_info)
     root_elem.set("name", theme_name)
-    tree = etree.ElementTree(root_elem)
-    tree.write(theme_path, pretty_print=True)
-    print(f"Stored an Office theme font definition at:\n{theme_path}")
+    return etree.tostring(root_elem, pretty_print=True)
+
+
+def install_font_theme(
+    xml: bytes,
+    theme_name: str,
+    *,
+    overwrite: bool = False,
+    theme_dir: Path | None = None,
+) -> Path:
+    """Write an Office font theme definition into the Office theme directory and return its path."""
+    theme_name = validate_font_theme_name(theme_name)
+    if theme_dir is None:
+        try:
+            theme_dir = _get_font_theme_dir()
+        except RuntimeError as e:
+            raise FontThemeError(*e.args) from e
+    if not theme_dir.is_dir():
+        raise FontThemeError("The office theme directory does not exist.", str(theme_dir))
+    theme_path = theme_dir / f"{theme_name}.xml"
+    if theme_path.exists() and not overwrite:
+        raise FontThemeExistsError(theme_path)
+    try:
+        theme_path.write_bytes(xml)
+    except OSError as e:
+        raise FontThemeError("Failed to write the theme file.", str(theme_path), e.strerror) from e
+    return theme_path
+
+
+def generate_font_theme(theme_info: Theme, theme_name: str, *, overwrite: bool = False) -> Path:
+    theme_name = validate_font_theme_name(theme_name)
+    theme_path = install_font_theme(build_font_theme_xml(theme_info, theme_name), theme_name, overwrite=overwrite)
+    logger.info("Stored an Office theme font definition at:\n%s", theme_path)
+    return theme_path
 
 
 def _match_monospace_font(typeface: str | None) -> bool:
@@ -311,7 +383,7 @@ def _normalize_slide_font(root_elem: etree._ElementTree, theme_info: Theme, log_
                     scheme_prefix = "mj"
                 case _:  # other values may be "body", "sldNum", ...
                     scheme_prefix = "mn"
-            print(f"{log_prefix}: template element ({ph_elems[0].get('type')})")
+            logger.info("%s: template element (%s)", log_prefix, ph_elems[0].get("type"))
             for prop_elem in xpath_elements(sp_elem, "p:txBody//a:defRPr"):
                 _update_paragraph_style(prop_elem, theme_info, scheme_prefix=scheme_prefix)
             for prop_elem in xpath_elements(sp_elem, "p:txBody//a:rPr"):
@@ -322,7 +394,7 @@ def _normalize_slide_font(root_elem: etree._ElementTree, theme_info: Theme, log_
                 for prop_elem in xpath_elements(sp_elem, "//a:lvl1pPr//a:defRPr"):
                     _update_first_level_bullet_style(prop_elem, theme_info)
         else:
-            print(f"{log_prefix}: normal element")
+            logger.info("%s: normal element", log_prefix)
             for prop_elem in xpath_elements(sp_elem, "p:txBody//a:rPr"):
                 _update_paragraph_style(prop_elem, theme_info, scheme_prefix="mn")
             for prop_elem in xpath_elements(sp_elem, "p:txBody//a:endParaRPr"):
