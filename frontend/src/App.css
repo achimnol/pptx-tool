@@ -1,0 +1,18 @@
+.app-content {
+  width: 100%;
+  max-width: 1200px;
+  margin-inline: auto;
+}
+
+.app-columns {
+  display: grid;
+  grid-template-columns: 7fr 3fr;
+  gap: var(--spacing-8);
+  align-items: start;
+}
+
+@media (width < 768px) {
+  .app-columns {
+    grid-template-columns: 1fr;
+  }
+}

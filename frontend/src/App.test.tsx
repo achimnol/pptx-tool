@@ -32,6 +32,20 @@ describe('App', () => {
     expect(screen.getByRole('textbox', {name: /Monospace · Hangul/})).toHaveValue('모노');
   });
 
+  it('places the theme editor before the presentation panel', async () => {
+    renderApp();
+    await waitForEditor();
+    const theme = screen.getByRole('heading', {name: 'Theme'});
+    const presentation = screen.getByRole('heading', {name: 'Presentation'});
+    expect(
+      theme.compareDocumentPosition(presentation) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    // The tabs only switch the presentation panel, so they live in the same column.
+    const column = presentation.closest('.app-columns > *');
+    expect(column).toContainElement(screen.getByRole('tablist'));
+    expect(document.querySelector('.app-content')).toContainElement(theme);
+  });
+
   it('marks an edited preset as modified', async () => {
     renderApp();
     const input = await waitForEditor();
