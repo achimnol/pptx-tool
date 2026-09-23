@@ -1,7 +1,15 @@
 import tempfile
 from pathlib import Path
 
-from .fix import fix_theme_font, normalize_layout_fonts, normalize_master_fonts, normalize_slide_fonts
+from .fix import (
+    fix_theme_font,
+    normalize_chart_fonts,
+    normalize_diagram_fonts,
+    normalize_layout_fonts,
+    normalize_master_fonts,
+    normalize_slide_fonts,
+    normalize_table_style_fonts,
+)
 from .package import ArchiveLimits, build_pptx, extract_pptx
 from .types import Theme
 
@@ -33,4 +41,7 @@ def _fix_extracted_pptx(src: Path, dst: Path, theme_info: Theme, work_path: Path
     normalize_master_fonts(work_path, theme_info)
     normalize_layout_fonts(work_path, theme_info)
     normalize_slide_fonts(work_path, theme_info)
+    normalize_table_style_fonts(work_path, theme_info)
+    normalize_chart_fonts(work_path, theme_info)
+    normalize_diagram_fonts(work_path, theme_info)
     build_pptx(work_path, dst)

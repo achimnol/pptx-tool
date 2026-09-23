@@ -13,6 +13,10 @@ xmlns: Final = {
     "a": "http://schemas.openxmlformats.org/drawingml/2006/main",
     "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
     "p": "http://schemas.openxmlformats.org/presentationml/2006/main",
+    "c": "http://schemas.openxmlformats.org/drawingml/2006/chart",
+    "cx": "http://schemas.microsoft.com/office/drawing/2014/chartex",
+    "dgm": "http://schemas.openxmlformats.org/drawingml/2006/diagram",
+    "dsp": "http://schemas.microsoft.com/office/drawing/2008/diagram",
 }
 
 style_typeface_map: Final = {
@@ -400,6 +404,17 @@ def _normalize_slide_font(root_elem: etree._ElementTree, theme_info: Theme, log_
             for prop_elem in xpath_elements(sp_elem, "p:txBody//a:endParaRPr"):
                 _update_paragraph_style(prop_elem, theme_info, scheme_prefix="mn")
 
+    for tbl_elem in xpath_elements(root_elem, "//p:graphicFrame//a:tbl"):
+        logger.info("%s: table element", log_prefix)
+        for prop_elem in xpath_elements(tbl_elem, ".//a:txBody//a:defRPr"):
+            _update_paragraph_style(prop_elem, theme_info, scheme_prefix="mn")
+        for prop_elem in xpath_elements(tbl_elem, ".//a:txBody//a:rPr"):
+            _update_paragraph_style(prop_elem, theme_info, scheme_prefix="mn")
+        for prop_elem in xpath_elements(tbl_elem, ".//a:txBody//a:endParaRPr"):
+            _update_paragraph_style(prop_elem, theme_info, scheme_prefix="mn")
+        for tx_style_elem in xpath_elements(tbl_elem, ".//a:tcTxStyle"):
+            _update_table_text_style(tx_style_elem, theme_info)
+
     for bullet_font_elem in xpath_elements(root_elem, "//a:pPr//a:buFont"):
         if theme_info.preserve_mono and _match_monospace_font(bullet_font_elem.get("typeface")):
             continue
@@ -427,3 +442,55 @@ def normalize_slide_fonts(
         root_elem = etree.parse(slide_path)
         _normalize_slide_font(root_elem, theme_info, log_prefix=slide_path.name)
         root_elem.write(slide_path)
+
+
+def _update_table_text_style(tx_style_elem: etree._Element, theme_info: Theme) -> None:
+    for font_elem in xpath_elements(tx_style_elem, "a:font"):
+        if _has_monospace_font(font_elem):
+            _update_paragraph_style(font_elem, theme_info)
+            continue
+        # Defer to the theme's minor font like the built-in table styles do.
+        font_ref_elem = etree.Element(etree.QName(xmlns["a"], "fontRef"), attrib={"idx": "minor"})
+        tx_style_elem.replace(font_elem, font_ref_elem)
+
+
+def normalize_table_style_fonts(
+    work_path: Path,
+    theme_info: Theme,
+) -> None:
+    table_styles_path = work_path / "ppt" / "tableStyles.xml"
+    if not table_styles_path.is_file():
+        return
+    root_elem = etree.parse(table_styles_path)
+    for tx_style_elem in xpath_elements(root_elem, "//a:tcTxStyle"):
+        _update_table_text_style(tx_style_elem, theme_info)
+    root_elem.write(table_styles_path)
+
+
+def _normalize_text_part_font(part_path: Path, theme_info: Theme) -> None:
+    root_elem = etree.parse(part_path)
+    for prop_elem in xpath_elements(root_elem, "//a:defRPr | //a:rPr | //a:endParaRPr"):
+        _update_paragraph_style(prop_elem, theme_info, scheme_prefix="mn")
+    root_elem.write(part_path)
+
+
+def normalize_chart_fonts(
+    work_path: Path,
+    theme_info: Theme,
+) -> None:
+    chart_dir = work_path / "ppt" / "charts"
+    # Also matches the chartEx*.xml parts of the newer chart types.
+    for chart_path in chart_dir.glob("chart*.xml"):
+        logger.info("%s: chart", chart_path.name)
+        _normalize_text_part_font(chart_path, theme_info)
+
+
+def normalize_diagram_fonts(
+    work_path: Path,
+    theme_info: Theme,
+) -> None:
+    diagram_dir = work_path / "ppt" / "diagrams"
+    # SmartArt keeps its text in the data model and a cached drawing that PowerPoint renders.
+    for diagram_path in [*diagram_dir.glob("data*.xml"), *diagram_dir.glob("drawing*.xml")]:
+        logger.info("%s: diagram", diagram_path.name)
+        _normalize_text_part_font(diagram_path, theme_info)
