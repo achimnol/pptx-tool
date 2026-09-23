@@ -10,6 +10,11 @@ dependencies = [
     "lxml>=5.3",
 ]
 
+[project.optional-dependencies]
+web = [
+    "litestar[standard]>=2.24,<3",
+]
+
 [project.scripts]
 pptx-tool = "pptx_tool.__main__:main"
 
@@ -26,8 +31,15 @@ dev = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build]
+# The web UI assets are built from frontend/ and git-ignored.
+artifacts = ["pptx_tool/web/static/**"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["pptx_tool"]
+
+[tool.hatch.build.targets.sdist]
+exclude = ["frontend/node_modules", ".github"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

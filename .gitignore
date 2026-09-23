@@ -137,3 +137,8 @@ dmypy.json
 .DS_Store
 *.code-workspace
 *.pptx
+
+# Web UI
+node_modules/
+/pptx_tool/web/static/
+/frontend/coverage/

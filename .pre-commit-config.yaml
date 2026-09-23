@@ -25,11 +25,12 @@ repos:
     hooks:
       - id: uv-lock
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v2.3.1
+  # Run mypy in the locked project environment so that it sees the optional web dependencies.
+  - repo: local
     hooks:
       - id: mypy
+        name: mypy
+        entry: uv run --frozen --all-groups --all-extras mypy
+        language: system
         pass_filenames: false
-        additional_dependencies:
-          - lxml-stubs==0.5.1
-          - pytest==9.1.1
+        types_or: [python, pyi]
