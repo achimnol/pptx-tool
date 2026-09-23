@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from pptx_tool.theme import ThemeError, dump_theme, load_theme, load_theme_file
+from pptx_tool.theme import ThemeError, dump_theme, list_bundled_themes, load_theme, load_theme_file, resolve_theme_arg
 
 VALID_THEME: dict[str, Any] = {
     "majorFont": {"latin": "A", "hangul": "B", "symbol": "C"},
@@ -98,3 +98,28 @@ def test_load_theme_file(tmp_path: Path) -> None:
     path = tmp_path / "theme.json"
     path.write_text(json.dumps(VALID_THEME))
     assert load_theme_file(path) == load_theme(VALID_THEME)
+
+
+def test_list_bundled_themes() -> None:
+    themes = list_bundled_themes()
+    assert len(themes) >= 11
+    ids = [t.id for t in themes]
+    assert ids == sorted(ids)
+    pretendard = next(t for t in themes if t.id == "pretendard")
+    assert pretendard.name == "Pretendard"
+    assert pretendard.theme.major_font_latin == "Pretendard"
+
+
+def test_resolve_theme_arg_bundled_id() -> None:
+    assert resolve_theme_arg("pretendard").major_font_latin == "Pretendard"
+
+
+def test_resolve_theme_arg_path_wins(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    Path("pretendard").write_text(json.dumps(VALID_THEME))
+    assert resolve_theme_arg("pretendard").major_font_latin == "A"
+
+
+def test_resolve_theme_arg_unknown() -> None:
+    with pytest.raises(ThemeError, match="neither a theme file nor a bundled theme"):
+        resolve_theme_arg("no-such-theme")

@@ -1,8 +1,10 @@
 """Parse, validate and serialize the theme JSON files shared by the CLI and the web UI."""
 
 import dataclasses
+import importlib.resources
 import json
 from collections.abc import Mapping
+from importlib.resources.abc import Traversable
 from pathlib import Path
 from typing import Any
 
@@ -133,3 +135,39 @@ def load_theme_file(path: Path) -> Theme:
     except json.JSONDecodeError as e:
         raise ThemeError([ThemeFieldError("", f"{path} is not a valid JSON file ({e})")]) from e
     return load_theme(data)
+
+
+@dataclasses.dataclass(frozen=True)
+class BundledTheme:
+    id: str
+    name: str
+    theme: Theme
+
+
+def _bundled_theme_dir() -> Traversable:
+    return importlib.resources.files("pptx_tool") / "themes"
+
+
+def list_bundled_themes() -> list[BundledTheme]:
+    """List the themes shipped with the package, sorted by their ids (file stems)."""
+    themes: list[BundledTheme] = []
+    for entry in _bundled_theme_dir().iterdir():
+        if not entry.name.endswith(".json"):
+            continue
+        theme_id = entry.name.removesuffix(".json")
+        name = theme_id.replace("-", " ").title()
+        themes.append(BundledTheme(theme_id, name, load_theme(json.loads(entry.read_text(encoding="utf-8")))))
+    return sorted(themes, key=lambda t: t.id)
+
+
+def resolve_theme_arg(value: str) -> Theme:
+    """Load a theme from a JSON file path, or from a bundled theme id such as "pretendard"."""
+    path = Path(value)
+    if path.is_file():
+        return load_theme_file(path)
+    bundled = {t.id: t for t in list_bundled_themes()}
+    if value in bundled:
+        return bundled[value].theme
+    raise ThemeError([
+        ThemeFieldError("", f"{value!r} is neither a theme file nor a bundled theme ({', '.join(sorted(bundled))})")
+    ])

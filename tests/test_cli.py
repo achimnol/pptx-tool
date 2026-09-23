@@ -137,3 +137,10 @@ def test_invalid_theme_exits_with_error(
         _run_cli(monkeypatch, "fix-font", "--theme", str(theme_path), str(sample_pptx), str(tmp_path / "out.pptx"))
     assert exc_info.value.code == 2
     assert "majorFont.hangul: must be a non-empty string" in capsys.readouterr().err
+
+
+def test_fix_font_with_bundled_theme(tmp_path: Path, sample_pptx: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    dst_path = tmp_path / "fixed.pptx"
+    _run_cli(monkeypatch, "fix-font", "--theme", "pretendard", str(sample_pptx), str(dst_path))
+    with zipfile.ZipFile(dst_path) as zf:
+        assert 'typeface="Pretendard"' in zf.read("ppt/theme/theme1.xml").decode()

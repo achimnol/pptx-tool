@@ -11,7 +11,7 @@ from .fix import (
     normalize_slide_fonts,
 )
 from .package import build_pptx, extract_pptx
-from .theme import ThemeError, load_theme_file
+from .theme import ThemeError, resolve_theme_arg
 from .types import Theme
 
 
@@ -37,7 +37,7 @@ def do_build_pptx(args: argparse.Namespace) -> None:
 
 
 def do_fix_pptx(args: argparse.Namespace) -> None:
-    theme_info = _resolve_preserve_mono(load_theme_file(args.theme), args)
+    theme_info = _resolve_preserve_mono(resolve_theme_arg(args.theme), args)
     with tempfile.TemporaryDirectory(prefix="pptx-font-fix-") as tmp_dir:
         tmp_path = Path(tmp_dir)
         extract_pptx(args.src, tmp_path)
@@ -49,7 +49,7 @@ def do_fix_pptx(args: argparse.Namespace) -> None:
 
 
 def do_generate_font_theme(args: argparse.Namespace) -> None:
-    theme_info = load_theme_file(args.theme)
+    theme_info = resolve_theme_arg(args.theme)
     generate_font_theme(theme_info, args.name, overwrite=args.overwrite)
 
 
@@ -77,7 +77,9 @@ def main() -> None:
         "fix-font",
         help="Fix up the font theme and normalize all slide objects to use major/minor fonts correctly in a pptx file.",
     )
-    parser_fix.add_argument("--theme", type=Path, required=True, help="The path to a theme json file.")
+    parser_fix.add_argument(
+        "--theme", required=True, help="The path to a theme json file, or the name of a bundled theme."
+    )
     parser_fix.add_argument(
         "--preserve-mono",
         action=argparse.BooleanOptionalAction,
@@ -99,7 +101,9 @@ def main() -> None:
         "It also does not support 'body-first-line-style' and 'preserveMono' options. "
         "To use the new font theme, you must restart Office apps to take effect.",
     )
-    parser_gen.add_argument("--theme", type=Path, required=True, help="The path to a theme json file.")
+    parser_gen.add_argument(
+        "--theme", required=True, help="The path to a theme json file, or the name of a bundled theme."
+    )
     parser_gen.add_argument(
         "--overwrite", action="store_true", default=False, help="Overwrite the Office font theme file if already exists"
     )

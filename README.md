@@ -12,10 +12,11 @@ interpreter and the virtualenv for you.
 
 ```console
 $ uv sync
-$ uv run pptx-tool fix-font --theme=themes/pretendard.json input.pptx output.pptx
+$ uv run pptx-tool fix-font --theme=pretendard input.pptx output.pptx
 ```
 
-Check out the `themes` directory for more theme definitions.
+The `--theme` option takes either the name of a bundled theme, such as `pretendard`, or the path to
+a theme JSON file.  Check out the `pptx_tool/themes` directory for the bundled theme definitions.
 
 By default, the text objects using a known monospace font (see `known_monospace_fonts`
 in `pptx_tool/fix.py`) have their latin/hangul typefaces replaced with the theme's `monoFont`,
@@ -25,7 +26,7 @@ If your slides use monospace fonts deliberately, such as for sample code, you ma
 as-is with the `--preserve-mono` option:
 
 ```console
-$ uv run pptx-tool fix-font --preserve-mono --theme=themes/pretendard.json input.pptx output.pptx
+$ uv run pptx-tool fix-font --preserve-mono --theme=pretendard input.pptx output.pptx
 ```
 
 You may also enable it in the theme file itself, and override it back with `--no-preserve-mono`:
@@ -53,7 +54,7 @@ You may also generate and register an office font theme (shared by all Office ap
 the following command:
 
 ```console
-$ uv run pptx-tool generate-font-theme --theme=themes/pretendard.json 'My Pretendard'
+$ uv run pptx-tool generate-font-theme --theme=pretendard 'My Pretendard'
 ```
 
 After restarting the PowerPoint app, you can choose this theme from the "Design" ribbon.
