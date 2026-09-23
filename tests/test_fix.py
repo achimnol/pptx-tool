@@ -352,3 +352,20 @@ def test_master_body_style_double_pass(tmp_path: Path, make_theme: MakeTheme) ->
     root_elem = etree.parse(master_path)
     latin_elem = xpath_elements(root_elem, "//a:latin")[0]
     assert latin_elem.get("typeface") == "Sarasa Term K SemiBold"
+
+
+@pytest.mark.parametrize("preserve_mono,expected_mono", [(False, "MONO-LT"), (True, "Consolas")])
+def test_normalize_slide_font_table_cells(make_theme: MakeTheme, preserve_mono: bool, expected_mono: str) -> None:
+    """Text inside table cells lives in a graphic frame, not a shape, and must be normalized too."""
+    root_elem = _parse_slide(
+        "<p:graphicFrame><a:graphic><a:graphicData><a:tbl><a:tr><a:tc><a:txBody>"
+        '<a:lstStyle><a:lvl1pPr><a:defRPr><a:latin typeface="Arial"/></a:defRPr></a:lvl1pPr></a:lstStyle>'
+        "<a:p>"
+        '<a:r><a:rPr><a:latin typeface="Arial"/><a:ea typeface="굴림"/></a:rPr><a:t>Cell</a:t></a:r>'
+        '<a:r><a:rPr><a:latin typeface="Consolas"/></a:rPr><a:t>code()</a:t></a:r>'
+        '<a:endParaRPr><a:latin typeface="Arial"/></a:endParaRPr>'
+        "</a:p></a:txBody></a:tc></a:tr></a:tbl></a:graphicData></a:graphic></p:graphicFrame>"
+    )
+    _normalize_slide_font(root_elem, make_theme(preserve_mono=preserve_mono), log_prefix="test")
+    typefaces = [elem.get("typeface") for elem in xpath_elements(root_elem, "//a:latin | //a:ea")]
+    assert typefaces == ["+mn-lt", "+mn-lt", "+mn-ea", expected_mono, "+mn-lt"]

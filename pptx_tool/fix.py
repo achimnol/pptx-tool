@@ -400,6 +400,15 @@ def _normalize_slide_font(root_elem: etree._ElementTree, theme_info: Theme, log_
             for prop_elem in xpath_elements(sp_elem, "p:txBody//a:endParaRPr"):
                 _update_paragraph_style(prop_elem, theme_info, scheme_prefix="mn")
 
+    for tbl_elem in xpath_elements(root_elem, "//p:graphicFrame//a:tbl"):
+        logger.info("%s: table element", log_prefix)
+        for prop_elem in xpath_elements(tbl_elem, ".//a:txBody//a:defRPr"):
+            _update_paragraph_style(prop_elem, theme_info, scheme_prefix="mn")
+        for prop_elem in xpath_elements(tbl_elem, ".//a:txBody//a:rPr"):
+            _update_paragraph_style(prop_elem, theme_info, scheme_prefix="mn")
+        for prop_elem in xpath_elements(tbl_elem, ".//a:txBody//a:endParaRPr"):
+            _update_paragraph_style(prop_elem, theme_info, scheme_prefix="mn")
+
     for bullet_font_elem in xpath_elements(root_elem, "//a:pPr//a:buFont"):
         if theme_info.preserve_mono and _match_monospace_font(bullet_font_elem.get("typeface")):
             continue
