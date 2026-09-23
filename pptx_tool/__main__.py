@@ -10,6 +10,7 @@ from .fix import (
     normalize_master_fonts,
     normalize_slide_fonts,
 )
+from .log import cli_logging
 from .package import build_pptx, extract_pptx
 from .theme import ThemeError, resolve_theme_arg
 from .types import Theme
@@ -114,7 +115,8 @@ def main() -> None:
 
     args = parser.parse_args()
     try:
-        args.func(args)
+        with cli_logging():
+            args.func(args)
     except ThemeError as e:
         parser.error(str(e))
 

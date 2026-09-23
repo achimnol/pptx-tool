@@ -1,3 +1,4 @@
+import logging
 import sys
 from pathlib import Path
 from typing import Final, cast
@@ -5,6 +6,8 @@ from typing import Final, cast
 from lxml import etree
 
 from .types import Theme
+
+logger = logging.getLogger(__name__)
 
 xmlns: Final = {
     "a": "http://schemas.openxmlformats.org/drawingml/2006/main",
@@ -74,16 +77,20 @@ def xpath_elements(node: etree._Element | etree._ElementTree, path: str) -> list
 
 def _print_font_scheme(font_scheme: etree._Element, indent: str = "") -> None:
     for font_elem in font_scheme:
-        print(f"{indent}{local_tag(font_elem.tag)}:")
+        logger.info("%s%s:", indent, local_tag(font_elem.tag))
         for prev_typeface in font_elem:
             prev_script_name = local_tag(prev_typeface.tag)
             match prev_script_name:
                 case "font":
-                    print(
-                        f"{indent}  {prev_script_name} ({prev_typeface.get('script')}): {prev_typeface.get('typeface')}"
+                    logger.info(
+                        "%s  %s (%s): %s",
+                        indent,
+                        prev_script_name,
+                        prev_typeface.get("script"),
+                        prev_typeface.get("typeface"),
                     )
                 case _:
-                    print(f"{indent}  {prev_script_name}: {prev_typeface.get('typeface')}")
+                    logger.info("%s  %s: %s", indent, prev_script_name, prev_typeface.get("typeface"))
 
 
 def _fill_font_scheme(target_elem: etree._Element, theme_info: Theme) -> None:
@@ -144,23 +151,23 @@ def fix_theme_font(
         font_scheme_elem = xpath_elements(root_elem, "//a:fontScheme")[0]
 
         # Print out current theme font configuration
-        print(f"Current font scheme: (name={font_scheme_elem.get('name')!r})")
+        logger.info("Current font scheme: (name=%r)", font_scheme_elem.get("name"))
         _print_font_scheme(font_scheme_elem, indent="  ")
 
         _fill_font_scheme(font_scheme_elem, theme_info)
 
-        print(f"New font scheme: (name={font_scheme_elem.get('name')!r})")
+        logger.info("New font scheme: (name=%r)", font_scheme_elem.get("name"))
         _print_font_scheme(font_scheme_elem, indent="  ")
 
         # Write back
         root_elem.write(theme_path)
 
     if theme_info.preserve_mono:
-        print("Preserving the existing monospace fonts as-is.")
+        logger.info("Preserving the existing monospace fonts as-is.")
     else:
-        print("Target monospace font:")
-        print(f"  latin: {theme_info.mono_font_latin}")
-        print(f"  hangul: {theme_info.mono_font_hangul}")
+        logger.info("Target monospace font:")
+        logger.info("  latin: %s", theme_info.mono_font_latin)
+        logger.info("  hangul: %s", theme_info.mono_font_hangul)
 
 
 def _get_font_theme_dir() -> Path:
@@ -196,7 +203,7 @@ def generate_font_theme(theme_info: Theme, theme_name: str, *, overwrite: bool =
     root_elem.set("name", theme_name)
     tree = etree.ElementTree(root_elem)
     tree.write(theme_path, pretty_print=True)
-    print(f"Stored an Office theme font definition at:\n{theme_path}")
+    logger.info("Stored an Office theme font definition at:\n%s", theme_path)
 
 
 def _match_monospace_font(typeface: str | None) -> bool:
@@ -311,7 +318,7 @@ def _normalize_slide_font(root_elem: etree._ElementTree, theme_info: Theme, log_
                     scheme_prefix = "mj"
                 case _:  # other values may be "body", "sldNum", ...
                     scheme_prefix = "mn"
-            print(f"{log_prefix}: template element ({ph_elems[0].get('type')})")
+            logger.info("%s: template element (%s)", log_prefix, ph_elems[0].get("type"))
             for prop_elem in xpath_elements(sp_elem, "p:txBody//a:defRPr"):
                 _update_paragraph_style(prop_elem, theme_info, scheme_prefix=scheme_prefix)
             for prop_elem in xpath_elements(sp_elem, "p:txBody//a:rPr"):
@@ -322,7 +329,7 @@ def _normalize_slide_font(root_elem: etree._ElementTree, theme_info: Theme, log_
                 for prop_elem in xpath_elements(sp_elem, "//a:lvl1pPr//a:defRPr"):
                     _update_first_level_bullet_style(prop_elem, theme_info)
         else:
-            print(f"{log_prefix}: normal element")
+            logger.info("%s: normal element", log_prefix)
             for prop_elem in xpath_elements(sp_elem, "p:txBody//a:rPr"):
                 _update_paragraph_style(prop_elem, theme_info, scheme_prefix="mn")
             for prop_elem in xpath_elements(sp_elem, "p:txBody//a:endParaRPr"):
