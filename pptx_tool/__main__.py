@@ -65,6 +65,8 @@ def do_serve(args: argparse.Namespace) -> None:
     web_config = WebConfig(
         local=args.local,
         max_upload_size=args.max_upload_mb * 1024 * 1024,
+        tmp_dir=args.tmp_dir,
+        tmp_quota=args.tmp_quota_mb * 1024 * 1024,
         # Accept any Host header when serving on a public address, as the host names are unknown.
         allowed_hosts=loopback_host_headers(args.port) if is_loopback else (),
     )
@@ -149,8 +151,22 @@ def main() -> None:
     parser_serve.add_argument(
         "--max-upload-mb",
         type=int,
-        default=50,
+        default=200,
         help="The maximum size of uploaded pptx files in MiB. (default: %(default)s)",
+    )
+    parser_serve.add_argument(
+        "--tmp-dir",
+        type=Path,
+        default=Path("/tmp/pptx-tool"),
+        help="The directory for the uploaded and intermediate files, one subdirectory per request. "
+        "(default: %(default)s)",
+    )
+    parser_serve.add_argument(
+        "--tmp-quota-mb",
+        type=int,
+        default=1024,
+        help="The total size limit of --tmp-dir in MiB. "
+        "The files of the oldest finished requests are deleted to make room. (default: %(default)s)",
     )
     parser_serve.set_defaults(func=do_serve)
 

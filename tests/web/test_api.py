@@ -16,6 +16,7 @@ from lxml import etree
 from pptx_tool.package import ArchiveLimits
 from pptx_tool.web.config import loopback_host_headers
 from pptx_tool.web.routes import _hide_dir
+from pptx_tool.web.storage import RequestStorage, StorageFullError
 
 from ..samples import make_minimal_pptx
 from .conftest import MakeClient
@@ -66,7 +67,7 @@ def test_list_monospace_fonts(client: TestClient[Litestar]) -> None:
 
 
 def test_get_config(make_client: MakeClient) -> None:
-    assert make_client().get("/api/config").json() == {"local": False, "maxUploadSize": 50 * 1024**2}
+    assert make_client().get("/api/config").json() == {"local": False, "maxUploadSize": 200 * 1024**2}
     assert make_client(local=True, max_upload_size=1024).get("/api/config").json() == {
         "local": True,
         "maxUploadSize": 1024,
@@ -143,6 +144,52 @@ def test_fix_font_too_large(make_client: MakeClient, sample_pptx: Path) -> None:
     assert len(content) > 1024
     resp = _post_fix_font(client, content)
     assert resp.status_code == 413
+
+
+def test_fix_font_cleans_request_dir(client: TestClient[Litestar], sample_pptx: Path, tmp_dir: Path) -> None:
+    resp = _post_fix_font(client, sample_pptx.read_bytes())
+    assert resp.status_code == 200, resp.text
+    assert tmp_dir.is_dir()
+    assert list(tmp_dir.iterdir()) == []
+
+
+def test_fix_font_cleans_stale_dirs_on_startup(make_client: MakeClient, tmp_dir: Path) -> None:
+    leftover = tmp_dir / "req-leftover"
+    leftover.mkdir(parents=True)
+    (leftover / "src.pptx").write_bytes(b"x" * 100)
+    make_client()
+    assert not leftover.exists()
+
+
+def test_fix_font_evicts_oldest_request(make_client: MakeClient, sample_pptx: Path, tmp_dir: Path) -> None:
+    content = sample_pptx.read_bytes()
+    client = make_client(tmp_quota=len(content) * 4)
+    # A finished request left behind after the startup cleanup, which occupies most of the quota.
+    old = tmp_dir / "req-old"
+    old.mkdir()
+    (old / "dst.pptx").write_bytes(b"x" * len(content) * 3)
+    resp = _post_fix_font(client, content)
+    assert resp.status_code == 200, resp.text
+    assert not old.exists()
+
+
+def test_fix_font_exceeds_quota(make_client: MakeClient, sample_pptx: Path) -> None:
+    content = sample_pptx.read_bytes()
+    resp = _post_fix_font(make_client(tmp_quota=len(content) - 1), content)
+    assert resp.status_code == 413
+    assert "temporary storage" in resp.json()["detail"]
+
+
+def test_fix_font_storage_full(
+    client: TestClient[Litestar], sample_pptx: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def reserve(self: RequestStorage, needed: int) -> None:
+        raise StorageFullError("The temporary storage is occupied by the requests in progress.")
+
+    monkeypatch.setattr(RequestStorage, "reserve", reserve)
+    resp = _post_fix_font(client, sample_pptx.read_bytes())
+    assert resp.status_code == 503
+    assert "Try again later" in resp.json()["detail"]
 
 
 def test_font_theme_download(client: TestClient[Litestar]) -> None:

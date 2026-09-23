@@ -191,8 +191,25 @@ def test_serve_config(
     assert captured["config"].local is local
     assert captured["config"].allowed_hosts == allowed_hosts
     assert captured["config"].max_upload_size == 10 * 1024 * 1024
+    assert captured["config"].tmp_dir == Path("/tmp/pptx-tool")
+    assert captured["config"].tmp_quota == 1024 * 1024 * 1024
     # The server does not echo the processing logs of each request.
     assert package_logger.propagate is False
+
+
+def test_serve_storage_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    pytest.importorskip("litestar")
+    import uvicorn
+
+    from pptx_tool.web import app as web_app
+
+    captured: dict[str, Any] = {}
+    monkeypatch.setattr(web_app, "create_app", lambda web_config: captured.setdefault("config", web_config))
+    monkeypatch.setattr(uvicorn, "run", lambda app, **kwargs: None)
+    _run_cli(monkeypatch, "serve", "--tmp-dir", str(tmp_path / "work"), "--tmp-quota-mb", "5")
+    assert captured["config"].max_upload_size == 200 * 1024 * 1024
+    assert captured["config"].tmp_dir == tmp_path / "work"
+    assert captured["config"].tmp_quota == 5 * 1024 * 1024
 
 
 def test_generate_font_theme_exists(

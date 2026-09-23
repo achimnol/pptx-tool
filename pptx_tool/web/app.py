@@ -9,6 +9,7 @@ from litestar.types import ControllerRouterHandler
 
 from .config import WebConfig
 from .routes import route_handlers
+from .storage import RequestStorage
 
 _NOT_BUILT_HTML = """<!doctype html>
 <html><head><meta charset="utf-8"><title>pptx-tool</title></head>
@@ -40,13 +41,21 @@ def _get_version() -> str:
 
 def create_app(web_config: WebConfig | None = None) -> Litestar:
     config = web_config or WebConfig()
+    storage = RequestStorage(config.tmp_dir, config.tmp_quota)
 
     def provide_web_config() -> WebConfig:
         return config
 
+    def provide_storage() -> RequestStorage:
+        return storage
+
     return Litestar(
         route_handlers=[*route_handlers, _frontend_handler(config)],
-        dependencies={"web_config": Provide(provide_web_config, use_cache=True, sync_to_thread=False)},
+        dependencies={
+            "web_config": Provide(provide_web_config, use_cache=True, sync_to_thread=False),
+            "storage": Provide(provide_storage, use_cache=True, sync_to_thread=False),
+        },
+        on_startup=[storage.cleanup_stale],
         # Leave some room for the multipart encoding overhead around the uploaded file.
         request_max_body_size=config.max_upload_size + 1024 * 1024,
         allowed_hosts=AllowedHostsConfig(allowed_hosts=list(config.allowed_hosts)) if config.allowed_hosts else None,
