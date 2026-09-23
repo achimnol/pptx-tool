@@ -162,12 +162,13 @@ def list_bundled_themes() -> list[BundledTheme]:
             continue
         theme_id = entry.name.removesuffix(".json")
         data = json.loads(entry.read_text(encoding="utf-8"))
-        name = data.get("name") if isinstance(data, Mapping) else None
+        theme = load_theme(data)
+        name = data.get("name")
         if not isinstance(name, str) or not name.strip():
             raise ThemeError([
                 ThemeFieldError("name", f"bundled theme {theme_id!r} must define a non-empty display name"),
             ])
-        themes.append(BundledTheme(theme_id, name, load_theme(data)))
+        themes.append(BundledTheme(theme_id, name, theme))
     return sorted(themes, key=lambda t: t.id)
 
 

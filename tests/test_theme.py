@@ -120,6 +120,12 @@ def test_bundled_theme_names() -> None:
     assert names["inter-pretendard"] == "Inter Display + Pretendard"
 
 
+def test_bundled_theme_reads_name(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    (tmp_path / "named.json").write_text(json.dumps({**VALID_THEME, "name": "Named"}), encoding="utf-8")
+    monkeypatch.setattr("pptx_tool.theme._bundled_theme_dir", lambda: tmp_path)
+    assert [(t.id, t.name) for t in list_bundled_themes()] == [("named", "Named")]
+
+
 def test_bundled_theme_requires_name(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     (tmp_path / "unnamed.json").write_text(json.dumps(VALID_THEME), encoding="utf-8")
     monkeypatch.setattr("pptx_tool.theme._bundled_theme_dir", lambda: tmp_path)
