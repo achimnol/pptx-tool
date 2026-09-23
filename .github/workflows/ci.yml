@@ -22,7 +22,7 @@ jobs:
         with:
           enable-cache: true
       - name: Install dependencies
-        run: uv sync --all-groups
+        run: uv sync --all-groups --all-extras
       - name: ruff check
         run: uv run ruff check --output-format=github .
       - name: ruff format
@@ -31,12 +31,17 @@ jobs:
         run: uv run mypy
 
   test:
-    name: Test (Python ${{ matrix.python-version }})
+    name: Test (Python ${{ matrix.python-version }}${{ matrix.cli-only && ', CLI only' || '' }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.13", "3.14"]
+        cli-only: [false]
+        include:
+          # Ensure that the CLI works without the optional web dependencies.
+          - python-version: "3.13"
+            cli-only: true
     steps:
       - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v7
@@ -44,6 +49,70 @@ jobs:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
-        run: uv sync --all-groups
+        run: uv sync --all-groups ${{ !matrix.cli-only && '--all-extras' || '' }}
       - name: Run tests
         run: uv run pytest -v
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Type-check
+        run: pnpm typecheck
+      - name: Lint
+        run: pnpm lint
+      - name: Test
+        run: pnpm test --run
+      - name: Check that the API types match the server
+        run: |
+          pnpm gen:openapi
+          pnpm gen:api
+          git diff --exit-code -- openapi.json src/api/schema.d.ts
+      - name: Build
+        run: pnpm build
+
+  package:
+    name: Package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - name: Build the frontend
+        working-directory: frontend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+      - name: Build the wheel
+        run: uv build
+      - name: Check the wheel contents
+        run: |
+          unzip -l dist/*.whl > wheel-contents.txt
+          grep -q "pptx_tool/web/static/index.html" wheel-contents.txt
+          grep -q "pptx_tool/themes/pretendard.json" wheel-contents.txt
