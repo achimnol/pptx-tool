@@ -8,13 +8,11 @@ export interface FieldError {
 export class ApiError extends Error {
   readonly status: number;
   readonly fieldErrors: FieldError[];
-  readonly extra: unknown;
 
   constructor(status: number, detail: string, extra?: unknown) {
     super(detail);
     this.name = 'ApiError';
     this.status = status;
-    this.extra = extra;
     this.fieldErrors = Array.isArray(extra)
       ? extra.filter(
           (e): e is FieldError =>

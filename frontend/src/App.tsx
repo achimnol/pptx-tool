@@ -81,22 +81,25 @@ export function App() {
   } else {
     content = (
       <Grid columns={{minWidth: 420, max: 2, repeat: 'fit'}} gap={8} align="start">
-        {tab === 'fix-fonts' && (
-          <FixFontsPanel
-            theme={editorState.theme}
-            isThemeValid={validation?.ok ?? false}
-            maxUploadSize={config.data?.maxUploadSize}
-            onFieldErrors={setServerFieldErrors}
-          />
-        )}
-        {tab === 'font-theme' && (
-          <FontThemePanel
-            theme={editorState.theme}
-            isThemeValid={validation?.ok ?? false}
-            isLocal={config.data?.local ?? false}
-            onFieldErrors={setServerFieldErrors}
-          />
-        )}
+        {/* Keep both task panels mounted so that switching tabs keeps their inputs. */}
+        <div>
+          <div hidden={tab !== 'fix-fonts'}>
+            <FixFontsPanel
+              theme={editorState.theme}
+              isThemeValid={validation?.ok ?? false}
+              maxUploadSize={config.data?.maxUploadSize}
+              onFieldErrors={setServerFieldErrors}
+            />
+          </div>
+          <div hidden={tab !== 'font-theme'}>
+            <FontThemePanel
+              theme={editorState.theme}
+              isThemeValid={validation?.ok ?? false}
+              isLocal={config.data?.local ?? false}
+              onFieldErrors={setServerFieldErrors}
+            />
+          </div>
+        </div>
         <ThemeEditor
           state={editorState}
           dispatch={(action) => {

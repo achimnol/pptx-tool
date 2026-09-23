@@ -253,7 +253,10 @@ def install_font_theme(
     theme_path = theme_dir / f"{theme_name}.xml"
     if theme_path.exists() and not overwrite:
         raise FontThemeExistsError(theme_path)
-    theme_path.write_bytes(xml)
+    try:
+        theme_path.write_bytes(xml)
+    except OSError as e:
+        raise FontThemeError("Failed to write the theme file.", str(theme_path), e.strerror) from e
     return theme_path
 
 

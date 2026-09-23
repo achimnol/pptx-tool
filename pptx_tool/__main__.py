@@ -4,7 +4,7 @@ import dataclasses
 import sys
 from pathlib import Path
 
-from .fix import InvalidFontThemeNameError, generate_font_theme
+from .fix import FontThemeError, InvalidFontThemeNameError, generate_font_theme
 from .log import cli_logging
 from .package import build_pptx, extract_pptx
 from .pipeline import fix_pptx
@@ -145,7 +145,7 @@ def main() -> None:
     parser_serve.add_argument(
         "--max-upload-mb",
         type=int,
-        default=200,
+        default=50,
         help="The maximum size of uploaded pptx files in MiB. (default: %(default)s)",
     )
     parser_serve.set_defaults(func=do_serve)
@@ -157,6 +157,8 @@ def main() -> None:
             args.func(args)
     except (ThemeError, InvalidFontThemeNameError) as e:
         parser.error(str(e))
+    except FontThemeError as e:
+        sys.exit(" ".join(str(arg) for arg in e.args))
 
 
 if __name__ == "__main__":

@@ -3,9 +3,12 @@ import {describe, expect, it} from 'vitest';
 import {validateFontThemeName} from './validateFontThemeName';
 
 describe('validateFontThemeName', () => {
-  it.each(['My Theme', '나의 테마', '  padded  ', 'a.b', 'x'.repeat(100)])('accepts %j', (name) => {
-    expect(validateFontThemeName(name)).toBeNull();
-  });
+  it.each(['My Theme', '나의 테마', '  padded  ', 'a.b', 'x'.repeat(100), '😀'.repeat(100)])(
+    'accepts %j',
+    (name) => {
+      expect(validateFontThemeName(name)).toBeNull();
+    },
+  );
 
   it.each([
     '',

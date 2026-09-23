@@ -117,4 +117,44 @@ describe('App tabs', () => {
     expect(await screen.findByRole('textbox', {name: /Font theme name/})).toBeInTheDocument();
     expect(screen.getByRole('textbox', {name: /Heading · Latin/})).toHaveValue('Major Sans X');
   });
+
+  it('keeps the chosen presentation when switching tabs', async () => {
+    renderApp();
+    await waitForEditor();
+    await userEvent.upload(getFileInput('.pptx'), new File(['PK'], 'deck.pptx'));
+    await userEvent.click(screen.getByRole('tab', {name: 'Office font theme'}));
+    await userEvent.click(screen.getByRole('tab', {name: 'Fix fonts'}));
+    expect(screen.getByRole('textbox', {name: /Output file name/})).toHaveValue('deck-fixed.pptx');
+  });
+
+  it('imports and exports theme JSON files', async () => {
+    renderApp();
+    await waitForEditor();
+    const imported = {...THEME, majorFont: {...THEME.majorFont, latin: 'Imported Sans'}};
+    await userEvent.upload(
+      getFileInput('.json'),
+      new File([JSON.stringify(imported)], 'custom.json', {type: 'application/json'}),
+    );
+    expect(await screen.findByRole('textbox', {name: /Heading · Latin/})).toHaveValue(
+      'Imported Sans',
+    );
+    expect(screen.getAllByText('Imported theme')[0]).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', {name: 'Export theme JSON'}));
+    const blob = vi.mocked(URL.createObjectURL).mock.calls.at(-1)![0] as Blob;
+    expect(JSON.parse(await blob.text())).toEqual(imported);
+  });
+
+  it('reports invalid theme JSON files', async () => {
+    renderApp();
+    await waitForEditor();
+    await userEvent.upload(
+      getFileInput('.json'),
+      new File(['{"majorFont": {}}'], 'broken.json', {type: 'application/json'}),
+    );
+    expect(
+      (await screen.findAllByText(/majorFont.latin: must be a non-empty string/))[0],
+    ).toBeInTheDocument();
+    expect(screen.getByRole('textbox', {name: /Heading · Latin/})).toHaveValue('Major Sans');
+  });
 });

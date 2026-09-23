@@ -11,7 +11,8 @@ function hasControlChars(value: string): boolean {
 export function validateFontThemeName(name: string): string | null {
   const trimmed = name.trim();
   if (trimmed === '') return 'The font theme name must not be empty.';
-  if (trimmed.length > 100) return 'The font theme name must be at most 100 characters long.';
+  // Count code points like Python's len(), not UTF-16 code units.
+  if ([...trimmed].length > 100) return 'The font theme name must be at most 100 characters long.';
   if (INVALID_CHARS.test(trimmed) || hasControlChars(trimmed)) {
     return 'The font theme name must not contain control characters or any of / \\ : * ? " < > |.';
   }

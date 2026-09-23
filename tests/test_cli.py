@@ -188,3 +188,13 @@ def test_serve_config(
     assert captured["config"].local is local
     assert captured["config"].allowed_hosts == allowed_hosts
     assert captured["config"].max_upload_size == 10 * 1024 * 1024
+
+
+def test_generate_font_theme_exists(
+    tmp_path: Path, theme_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr("pptx_tool.fix._get_font_theme_dir", lambda: tmp_path)
+    (tmp_path / "My Theme.xml").write_text("")
+    with pytest.raises(SystemExit) as exc_info:
+        _run_cli(monkeypatch, "generate-font-theme", "--theme", str(theme_path), "My Theme")
+    assert "The target theme file already exist." in str(exc_info.value.code)

@@ -1,4 +1,5 @@
 import base64
+import re
 import tempfile
 import zipfile
 from pathlib import Path, PurePath
@@ -49,6 +50,7 @@ from .models import (
 )
 
 _COPY_CHUNK_SIZE = 1024 * 1024
+_TEMP_PATH_PATTERN = re.compile(r"[^\s'\"]*pptx-font-fix-[^\s/\\]+[/\\]")
 
 
 def same_origin_guard(connection: ASGIConnection[Any, Any, Any, Any], _: BaseRouteHandler) -> None:
@@ -111,10 +113,12 @@ def fix_font(
                 fix_pptx(src_path, dst_path, theme_info, limits=web_config.archive_limits)
             except (zipfile.BadZipFile, UnsafeArchiveError) as e:
                 raise ValidationException(detail=f"Not a valid pptx file: {e}") from e
-            except (OSError, etree.XMLSyntaxError, IndexError) as e:
+            except (OSError, etree.XMLSyntaxError, LookupError, TypeError, ValueError, AttributeError) as e:
+                # Hide the server's temporary extraction directory from the message.
+                message = _TEMP_PATH_PATTERN.sub("", str(e))
                 raise HTTPException(
                     status_code=HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail=f"Failed to process the presentation: {e}",
+                    detail=f"Failed to process the presentation: {message}",
                 ) from e
         content = dst_path.read_bytes()
     return FixFontResult(

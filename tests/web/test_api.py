@@ -2,6 +2,8 @@ import base64
 import copy
 import io
 import json
+import logging
+import tempfile
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -14,6 +16,7 @@ from lxml import etree
 from pptx_tool.package import ArchiveLimits
 from pptx_tool.web.config import loopback_host_headers
 
+from ..samples import make_minimal_pptx
 from .conftest import MakeClient
 
 PPTX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
@@ -62,7 +65,7 @@ def test_list_monospace_fonts(client: TestClient[Litestar]) -> None:
 
 
 def test_get_config(make_client: MakeClient) -> None:
-    assert make_client().get("/api/config").json() == {"local": False, "maxUploadSize": 200 * 1024**2}
+    assert make_client().get("/api/config").json() == {"local": False, "maxUploadSize": 50 * 1024**2}
     assert make_client(local=True, max_upload_size=1024).get("/api/config").json() == {
         "local": True,
         "maxUploadSize": 1024,
@@ -222,3 +225,64 @@ def test_openapi_schema(client: TestClient[Litestar]) -> None:
     assert set(theme_data["properties"]) == {"majorFont", "minorFont", "monoFont", "options"}
     assert "titleBold" in schema["components"]["schemas"]["ThemeOptions"]["properties"]
     assert "/api/font-theme/install" in schema["paths"]
+
+
+def test_fix_font_does_not_echo_the_log(client: TestClient[Litestar], sample_pptx: Path) -> None:
+    records: list[logging.LogRecord] = []
+
+    class RecordingHandler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record)
+
+    handler = RecordingHandler()
+    root_logger = logging.getLogger()
+    root_logger.addHandler(handler)
+    try:
+        resp = _post_fix_font(client, sample_pptx.read_bytes())
+    finally:
+        root_logger.removeHandler(handler)
+    assert "Current font scheme" in resp.json()["log"]
+    assert not [r for r in records if r.name.startswith("pptx_tool")]
+
+
+def test_fix_font_hides_server_paths(client: TestClient[Litestar]) -> None:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("hello.txt", "hello")
+    detail = _post_fix_font(client, buf.getvalue()).json()["detail"]
+    assert "ppt/presentation.xml" in detail
+    assert "pptx-font-fix-" not in detail
+    assert tempfile.gettempdir() not in detail
+
+
+def test_fix_font_unexpected_structure(client: TestClient[Litestar], tmp_path: Path) -> None:
+    # An XML comment inside a run property trips the normalizer, which must not become a 500 error.
+    path = make_minimal_pptx(tmp_path / "commented.pptx")
+    with zipfile.ZipFile(path) as zf:
+        parts = {name: zf.read(name) for name in zf.namelist()}
+    parts["ppt/presentation.xml"] = parts["ppt/presentation.xml"].replace(b"<a:defRPr>", b"<a:defRPr><!-- x -->")
+    with zipfile.ZipFile(path, "w") as zf:
+        for name, content in parts.items():
+            zf.writestr(name, content)
+    resp = _post_fix_font(client, path.read_bytes())
+    assert resp.status_code == 422
+
+
+def test_install_font_theme_write_error(
+    make_client: MakeClient, font_theme_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fail(self: Path, data: bytes) -> int:
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(Path, "write_bytes", fail)
+    client = make_client(local=True)
+    resp = client.post("/api/font-theme/install", json={"name": "My Theme", "theme": THEME})
+    assert resp.status_code == 503
+    assert "Permission denied" in resp.json()["detail"]
+
+
+def test_install_font_theme_without_origin(make_client: MakeClient) -> None:
+    client = make_client(local=True)
+    resp = client.post("/api/font-theme/install", json={"name": "My Theme", "theme": THEME})
+    assert "origin" not in {k.lower() for k in resp.request.headers}
+    assert resp.status_code == 201

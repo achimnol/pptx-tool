@@ -52,7 +52,7 @@ export function FixFontsPanel({
     onFieldErrors([]);
     try {
       const result = await fixFont(file, theme);
-      const filename = ensurePptxSuffix(outputName || result.filename);
+      const filename = ensurePptxSuffix(outputName.trim() || result.filename);
       downloadBlob(base64ToBlob(result.contentBase64, PPTX_MEDIA_TYPE), filename);
       setLog(result.log);
       toast({body: `Fixed the fonts and saved ${filename}.`});

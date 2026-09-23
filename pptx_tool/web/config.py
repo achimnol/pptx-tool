@@ -17,7 +17,7 @@ def loopback_host_headers(port: int) -> tuple[str, ...]:
 class WebConfig:
     local: bool = False
     """Allow the endpoints that modify the server machine, such as installing Office font themes."""
-    max_upload_size: int = 200 * 1024**2
+    max_upload_size: int = 50 * 1024**2
     archive_limits: ArchiveLimits = dataclasses.field(default_factory=ArchiveLimits)
     static_dir: Path | None = STATIC_DIR
     """The directory containing the built frontend, or None to disable serving it."""
