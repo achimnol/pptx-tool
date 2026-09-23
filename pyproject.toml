@@ -37,6 +37,7 @@ pythonpath = ["."]
 line-length = 120
 target-version = "py313"
 src = ["pptx_tool", "tests"]
+preview = true
 
 [tool.ruff.lint]
 select = [

@@ -104,6 +104,26 @@ def test_paragraph_style_preserves_monospace_run_verbatim(parse_fragment: ParseF
     assert etree.tostring(prop_elem) == before
 
 
+def test_paragraph_style_drops_font_children_without_skipping_siblings(
+    parse_fragment: ParseFragment, make_theme: MakeTheme
+) -> None:
+    """Dropping a 'font' child must not skip whatever follows it in the same element."""
+    prop_elem = parse_fragment(
+        "<a:rPr>"
+        '<a:font script="Hang" typeface="Pretendard"/>'
+        '<a:font script="Hans" typeface="Pretendard"/>'
+        '<a:latin typeface="Pretendard"/>'
+        '<a:font script="Jpan" typeface="Pretendard"/>'
+        '<a:ea typeface="Pretendard"/>'
+        "</a:rPr>"
+    )
+    _update_paragraph_style(prop_elem, make_theme())
+    assert [(local_tag(elem), elem.get("typeface")) for elem in prop_elem] == [
+        ("latin", "+mn-lt"),
+        ("ea", "+mn-ea"),
+    ]
+
+
 @pytest.mark.parametrize("scheme_prefix,expected_sym", [("mn", "MIN-SYM"), ("mj", "MAJ-SYM")])
 def test_paragraph_style_still_converts_non_monospace_when_preserving(
     parse_fragment: ParseFragment,
@@ -204,14 +224,12 @@ def test_cli_overrides_theme_preserve_mono(
 ) -> None:
     theme_path = tmp_path / "theme.json"
     theme_path.write_text(
-        json.dumps(
-            {
-                "majorFont": {"latin": "A", "hangul": "A", "symbol": "A"},
-                "minorFont": {"latin": "A", "hangul": "A", "symbol": "A"},
-                "monoFont": {"latin": "M", "hangul": "M"},
-                "options": {"titleBold": True, "bodyFirstLevelStyle": None, "preserveMono": True},
-            }
-        )
+        json.dumps({
+            "majorFont": {"latin": "A", "hangul": "A", "symbol": "A"},
+            "minorFont": {"latin": "A", "hangul": "A", "symbol": "A"},
+            "monoFont": {"latin": "M", "hangul": "M"},
+            "options": {"titleBold": True, "bodyFirstLevelStyle": None, "preserveMono": True},
+        })
     )
     # Stub out the pipeline so the real do_fix_pptx runs and we can see the Theme it builds.
     captured: list[Theme] = []

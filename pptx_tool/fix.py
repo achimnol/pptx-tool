@@ -218,7 +218,8 @@ def _has_monospace_font(prop_elem: etree._Element) -> bool:
 def _update_paragraph_style(prop_elem: etree._Element, theme_info: Theme, scheme_prefix: str = "mn") -> None:
     if theme_info.preserve_mono and _has_monospace_font(prop_elem):
         return
-    for elem in prop_elem:
+    # Snapshot the children: the "font" case removes from the element being iterated.
+    for elem in list(prop_elem):
         elem_name = local_tag(elem)
         match elem_name:
             case "latin" | "ea" | "cs":
