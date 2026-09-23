@@ -101,7 +101,7 @@ def test_reserve_never_evicts_requests_in_progress(tmp_path: Path) -> None:
     thread = threading.Thread(target=other_request)
     thread.start()
     try:
-        started.wait()
+        assert started.wait(5)
         with storage.request_dir() as req_dir, pytest.raises(StorageFullError):
             storage.reserve(req_dir, 2000)
         assert list(storage.root.iterdir()) != []
@@ -111,6 +111,7 @@ def test_reserve_never_evicts_requests_in_progress(tmp_path: Path) -> None:
     assert list(storage.root.iterdir()) == []
 
 
+@pytest.mark.skipif(os.name != "posix", reason="creating symlinks may need privileges")
 def test_root_must_not_be_symlink(tmp_path: Path) -> None:
     (tmp_path / "real").mkdir()
     (tmp_path / "link").symlink_to(tmp_path / "real")

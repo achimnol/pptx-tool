@@ -57,17 +57,17 @@ class RequestStorage:
     def _ensure_root(self) -> None:
         try:
             self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
+            if self.root.is_symlink():
+                raise StorageError("The temporary directory must not be a symbolic link.")
+            # A fixed path inside a shared /tmp may have been created by another local user in advance.
+            st = self.root.stat()
+            if hasattr(os, "getuid") and st.st_uid != os.getuid():
+                raise StorageError("The temporary directory is owned by another user.")
+            # The mode given to mkdir() is subject to the umask and ignored for an existing directory.
+            if os.name == "posix" and stat.S_IMODE(st.st_mode) != 0o700:
+                self.root.chmod(0o700)
         except OSError as e:
-            raise StorageError("The temporary directory cannot be created.") from e
-        if self.root.is_symlink():
-            raise StorageError("The temporary directory must not be a symbolic link.")
-        # A fixed path inside a shared /tmp may have been created by another local user in advance.
-        st = self.root.stat()
-        if hasattr(os, "getuid") and st.st_uid != os.getuid():
-            raise StorageError("The temporary directory is owned by another user.")
-        # The mode given to mkdir() is subject to the umask and ignored for an existing directory.
-        if os.name == "posix" and stat.S_IMODE(st.st_mode) != 0o700:
-            self.root.chmod(0o700)
+            raise StorageError("The temporary directory cannot be prepared.") from e
 
     def cleanup_stale(self) -> None:
         """Delete everything left over from the previous runs."""

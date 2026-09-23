@@ -142,7 +142,7 @@ def fix_font(
             declared_size = _declared_size(src_path)
         except (zipfile.BadZipFile, EOFError, ValueError) as e:
             raise ValidationException(detail=f"Not a valid pptx file: {e}") from e
-        # The upload, the extracted package, and the rebuilt pptx, which is bounded by the upload size.
+        # The upload, the extracted package, and the rebuilt pptx, which is about the size of the upload.
         _reserve_storage(storage, req_dir, 2 * upload_size + declared_size)
         with capture_log() as log:
             try:

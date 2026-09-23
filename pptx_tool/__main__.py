@@ -63,7 +63,7 @@ def do_serve(args: argparse.Namespace) -> None:
     if args.local and not is_loopback:
         sys.exit("The --local option is allowed only when serving on a loopback address such as 127.0.0.1.")
     if args.tmp_quota_mb < 2 * args.max_upload_mb:
-        sys.exit("The --tmp-quota-mb option must be at least twice --max-upload-mb to process an upload of the limit.")
+        sys.exit("The --tmp-quota-mb option must be at least twice --max-upload-mb.")
     web_config = WebConfig(
         local=args.local,
         max_upload_size=args.max_upload_mb * 1024 * 1024,
