@@ -42,6 +42,7 @@ describe('App', () => {
     ).toBeTruthy();
     // The tabs only switch the presentation panel, so they live in the same column.
     const column = presentation.closest('.app-columns > *');
+    expect(theme.closest('.app-columns > *')?.previousElementSibling).toBeNull();
     expect(column).toContainElement(screen.getByRole('tablist'));
     expect(document.querySelector('.app-content')).toContainElement(theme);
   });

@@ -1,18 +1,19 @@
 .app-content {
-  width: 100%;
   max-width: 1200px;
   margin-inline: auto;
 }
 
 .app-columns {
   display: grid;
-  grid-template-columns: 7fr 3fr;
+  /* minmax(0, …) keeps wide content such as long file names from pushing a column past its share. */
+  grid-template-columns: minmax(0, 7fr) minmax(0, 3fr);
   gap: var(--spacing-8);
   align-items: start;
 }
 
-@media (width < 768px) {
+/* Below the Astryx `lg` width tier, the 30% column is too narrow for the task panels. */
+@media (width < 1024px) {
   .app-columns {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
