@@ -5,7 +5,7 @@ description = "A command-line tool to normalize fonts and themes in PowerPoint f
 authors = [{ name = "Joongi Kim", email = "me@daybreaker.info" }]
 license = "MIT"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.13"
 dependencies = [
     "lxml>=5.3",
 ]
@@ -35,7 +35,7 @@ pythonpath = ["."]
 
 [tool.ruff]
 line-length = 120
-target-version = "py310"
+target-version = "py313"
 src = ["pptx_tool", "tests"]
 
 [tool.ruff.lint]
@@ -56,7 +56,7 @@ select = [
 known-first-party = ["pptx_tool"]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.13"
 files = ["pptx_tool", "tests"]
 strict = true
 pretty = true

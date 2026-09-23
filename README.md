@@ -2,7 +2,7 @@
 A script package for pptx helper tools to fill the gap between PowerPoint GUI and OOXML.
 The main function is to fix up pptx font configurations considering Latin/EastAsian/ComplexScript/Symbol typeface mappings.
 
-This script package only relies on `lxml`, a popular XML parsing &amp; manipulation library for Python, and Python 3.10.
+This script package only relies on `lxml`, a popular XML parsing &amp; manipulation library for Python, and Python 3.13 or later.
 It does not require the PowerPoint app to be installed and can be run on any operating system where Python and uv runs.
 
 ## Getting Started
@@ -93,4 +93,4 @@ $ uv run pre-commit run --all-files
 ```
 
 The same checks run in CI for every push and pull request, and the test suite runs against
-Python 3.10, 3.12 and 3.14.
+Python 3.13 and 3.14.
