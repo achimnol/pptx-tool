@@ -13,6 +13,7 @@ import {useState, type Dispatch} from 'react';
 
 import type {FieldError} from '../api/errors';
 import type {BundledThemeInfo} from '../api/types';
+import {FontDownloadsPopover} from '../components/FontDownloadsPopover';
 import {MonospaceFontsPopover} from '../components/MonospaceFontsPopover';
 import {downloadBlob} from '../utils/download';
 import {
@@ -122,7 +123,10 @@ export function ThemeEditor({
       </VStack>
 
       <VStack gap={3}>
-        <Heading level={3}>Fonts</Heading>
+        <HStack justify="between" align="center">
+          <Heading level={3}>Fonts</Heading>
+          <FontDownloadsPopover />
+        </HStack>
         <Grid columns={{minWidth: 150, max: 3, repeat: 'fill'}} gap={3}>
           {FONT_SETS.flatMap(({key: set, label, scripts}) =>
             GRID_SCRIPTS.map((script) =>

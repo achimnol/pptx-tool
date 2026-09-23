@@ -4,6 +4,7 @@ import {describe, expect, it, vi} from 'vitest';
 
 import {App} from './App';
 import {baseRoutes, mockFetch, THEME, type MockRoute} from './test/fixtures';
+import {FONT_DOWNLOADS} from './theme-editor/fontDownloads';
 
 function renderApp(routes: MockRoute[] = []) {
   const {fetchMock, requests} = mockFetch([...baseRoutes(), ...routes]);
@@ -84,6 +85,19 @@ describe('App', () => {
       '~/Library/Group Containers/UBF8T346G9.Office/User Content.localized/Themes.localized/Theme Fonts',
     ]);
     expect(await screen.findByRole('button', {name: 'Copied the macOS path'})).toBeInTheDocument();
+  });
+
+  it('links to the official font download pages', async () => {
+    renderApp();
+    await waitForEditor();
+    await userEvent.click(screen.getByRole('button', {name: 'Where to download the fonts?'}));
+    const link = await screen.findByRole('link', {name: /^Pretendard/});
+    expect(link).toHaveAttribute('href', 'https://cactus.tistory.com/306');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'));
+    expect(screen.getAllByRole('link', {name: /opens in new tab/})).toHaveLength(
+      FONT_DOWNLOADS.length,
+    );
   });
 
   it('marks an edited preset as modified', async () => {
