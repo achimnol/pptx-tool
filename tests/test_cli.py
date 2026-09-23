@@ -123,3 +123,17 @@ def test_generate_font_theme_output(
         b"  </a:minorFont>\n"
         b"</a:fontScheme>\n"
     )
+
+
+def test_invalid_theme_exits_with_error(
+    tmp_path: Path,
+    sample_pptx: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    theme_path = tmp_path / "theme.json"
+    theme_path.write_text(json.dumps({**THEME_DATA, "majorFont": {"latin": "A"}}))
+    with pytest.raises(SystemExit) as exc_info:
+        _run_cli(monkeypatch, "fix-font", "--theme", str(theme_path), str(sample_pptx), str(tmp_path / "out.pptx"))
+    assert exc_info.value.code == 2
+    assert "majorFont.hangul: must be a non-empty string" in capsys.readouterr().err

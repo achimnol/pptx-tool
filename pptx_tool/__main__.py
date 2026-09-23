@@ -1,6 +1,5 @@
 import argparse
 import dataclasses
-import json
 import tempfile
 from pathlib import Path
 
@@ -12,25 +11,8 @@ from .fix import (
     normalize_slide_fonts,
 )
 from .package import build_pptx, extract_pptx
+from .theme import ThemeError, load_theme_file
 from .types import Theme
-
-
-def _load_theme(args: argparse.Namespace) -> Theme:
-    theme_data = json.loads(args.theme.read_text())
-    theme_info = Theme(
-        major_font_latin=theme_data["majorFont"]["latin"],
-        major_font_hangul=theme_data["majorFont"]["hangul"],
-        major_font_symbol=theme_data["majorFont"]["symbol"],
-        minor_font_latin=theme_data["minorFont"]["latin"],
-        minor_font_hangul=theme_data["minorFont"]["hangul"],
-        minor_font_symbol=theme_data["minorFont"]["symbol"],
-        mono_font_latin=theme_data["monoFont"]["latin"],
-        mono_font_hangul=theme_data["monoFont"]["hangul"],
-        title_bold=theme_data["options"]["titleBold"],
-        body_first_level_style=theme_data["options"]["bodyFirstLevelStyle"],
-        preserve_mono=theme_data["options"].get("preserveMono", False),
-    )
-    return theme_info
 
 
 def _resolve_preserve_mono(theme_info: Theme, args: argparse.Namespace) -> Theme:
@@ -55,7 +37,7 @@ def do_build_pptx(args: argparse.Namespace) -> None:
 
 
 def do_fix_pptx(args: argparse.Namespace) -> None:
-    theme_info = _resolve_preserve_mono(_load_theme(args), args)
+    theme_info = _resolve_preserve_mono(load_theme_file(args.theme), args)
     with tempfile.TemporaryDirectory(prefix="pptx-font-fix-") as tmp_dir:
         tmp_path = Path(tmp_dir)
         extract_pptx(args.src, tmp_path)
@@ -67,7 +49,7 @@ def do_fix_pptx(args: argparse.Namespace) -> None:
 
 
 def do_generate_font_theme(args: argparse.Namespace) -> None:
-    theme_info = _load_theme(args)
+    theme_info = load_theme_file(args.theme)
     generate_font_theme(theme_info, args.name, overwrite=args.overwrite)
 
 
@@ -127,7 +109,10 @@ def main() -> None:
     parser_gen.set_defaults(func=do_generate_font_theme)
 
     args = parser.parse_args()
-    args.func(args)
+    try:
+        args.func(args)
+    except ThemeError as e:
+        parser.error(str(e))
 
 
 if __name__ == "__main__":

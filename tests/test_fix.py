@@ -1,11 +1,10 @@
-import argparse
 import json
 from pathlib import Path
 
 import pytest
 from lxml import etree
 
-from pptx_tool.__main__ import _load_theme, main
+from pptx_tool.__main__ import main
 from pptx_tool.fix import (
     _has_monospace_font,
     _match_monospace_font,
@@ -18,6 +17,7 @@ from pptx_tool.fix import (
     xmlns,
     xpath_elements,
 )
+from pptx_tool.theme import load_theme_file
 from pptx_tool.types import Theme
 
 from .conftest import MakeTheme, ParseFragment
@@ -207,7 +207,7 @@ def test_normalize_slide_font_preserves_monospace_shape(make_theme: MakeTheme) -
 @pytest.mark.parametrize("theme_path", sorted(THEMES_DIR.glob("*.json")), ids=lambda p: p.name)
 def test_bundled_themes_load_without_preserve_mono_key(theme_path: Path) -> None:
     """Themes that omit 'preserveMono' must keep loading, with the option off."""
-    theme_info = _load_theme(argparse.Namespace(theme=theme_path))
+    theme_info = load_theme_file(theme_path)
     assert theme_info.preserve_mono is False
 
 
