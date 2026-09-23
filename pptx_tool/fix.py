@@ -54,7 +54,12 @@ known_monospace_fonts: Final = {
     'nanumgothiccoding',
     'hack',
     'recursive',
+    'sarasa term k',
+    'victor mono',
+    'pragmatapro',
 }
+
+preservable_typeface_tags: Final = frozenset({'latin', 'ea', 'cs', 'sym', 'font'})
 
 
 def local_tag(tag_name) -> str:
@@ -124,9 +129,12 @@ def fix_theme_font(
         # Write back
         root_elem.write(theme_path)
 
-    print("Target monospace font:")
-    print(f"  latin: {theme_info.mono_font_latin}")
-    print(f"  hangul: {theme_info.mono_font_hangul}")
+    if theme_info.preserve_mono:
+        print("Preserving the existing monospace fonts as-is.")
+    else:
+        print("Target monospace font:")
+        print(f"  latin: {theme_info.mono_font_latin}")
+        print(f"  hangul: {theme_info.mono_font_hangul}")
 
 
 def _get_font_theme_dir() -> Path:
@@ -164,11 +172,25 @@ def generate_font_theme(theme_info: Theme, theme_name: str, *, overwrite: bool =
     print(f"Stored an Office theme font definition at:\n{theme_path}")
 
 
-def _match_monospace_font(typeface: str) -> bool:
+def _match_monospace_font(typeface: str | None) -> bool:
+    if not typeface:
+        return False
     return typeface.lower() in known_monospace_fonts
 
 
+def _has_monospace_font(prop_elem: etree.Element) -> bool:
+    """Check if any typeface of the given text property element is a monospace font."""
+    for elem in prop_elem.getchildren():
+        if local_tag(elem) not in preservable_typeface_tags:
+            continue
+        if _match_monospace_font(elem.get('typeface')):
+            return True
+    return False
+
+
 def _update_paragraph_style(prop_elem: etree.Element, theme_info: Theme, scheme_prefix: str = "mn") -> None:
+    if theme_info.preserve_mono and _has_monospace_font(prop_elem):
+        return
     for elem in prop_elem.getchildren():
         elem_name = local_tag(elem)
         match elem_name:
@@ -192,6 +214,8 @@ def _update_paragraph_style(prop_elem: etree.Element, theme_info: Theme, scheme_
 
 
 def _update_first_level_bullet_style(prop_elem: etree.Element, theme_info: Theme) -> None:
+    if theme_info.preserve_mono and _has_monospace_font(prop_elem):
+        return
     for elem in prop_elem.getchildren():
         elem_name = local_tag(elem)
         match elem_name:
@@ -239,6 +263,8 @@ def normalize_master_fonts(
             for prop_elem in root_elem.xpath('//p:bodyStyle//a:lvl1pPr//a:defRPr', namespaces=xmlns):
                 _update_first_level_bullet_style(prop_elem, theme_info)
         for bullet_font_elem in root_elem.xpath('//p:bodyStyle//a:buFont', namespaces=xmlns):
+            if theme_info.preserve_mono and _match_monospace_font(bullet_font_elem.get('typeface')):
+                continue
             bullet_font_elem.clear()
             bullet_font_elem.set('typeface', theme_info.minor_font_symbol)
 
@@ -271,6 +297,8 @@ def _normalize_slide_font(root_elem: etree.ElementTree, theme_info: Theme, log_p
                 _update_paragraph_style(prop_elem, theme_info, scheme_prefix="mn")
 
     for bullet_font_elem in root_elem.xpath('//a:pPr//a:buFont', namespaces=xmlns):
+        if theme_info.preserve_mono and _match_monospace_font(bullet_font_elem.get('typeface')):
+            continue
         bullet_font_elem.clear()
         bullet_font_elem.set('typeface', theme_info.minor_font_symbol)
 

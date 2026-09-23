@@ -12,7 +12,12 @@ pptx-tool = "pptx_tool.__main__:main"
 python = "^3.10"
 lxml = "^4.9.0"
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

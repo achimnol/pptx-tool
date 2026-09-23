@@ -1,4 +1,5 @@
 import argparse
+import dataclasses
 import json
 import tempfile
 from pathlib import Path
@@ -27,8 +28,17 @@ def _load_theme(args: argparse.Namespace) -> Theme:
         mono_font_hangul=theme_data['monoFont']['hangul'],
         title_bold=theme_data['options']['titleBold'],
         body_first_level_style=theme_data['options']['bodyFirstLevelStyle'],
+        preserve_mono=theme_data['options'].get('preserveMono', False),
     )
     return theme_info
+
+
+def _resolve_preserve_mono(theme_info: Theme, args: argparse.Namespace) -> Theme:
+    """Let an explicit `--preserve-mono`/`--no-preserve-mono` override the theme option."""
+    preserve_mono = getattr(args, 'preserve_mono', None)
+    if preserve_mono is None:
+        return theme_info
+    return dataclasses.replace(theme_info, preserve_mono=preserve_mono)
 
 
 def do_extract_pptx(args: argparse.Namespace) -> None:
@@ -45,7 +55,7 @@ def do_build_pptx(args: argparse.Namespace) -> None:
 
 
 def do_fix_pptx(args: argparse.Namespace) -> None:
-    theme_info = _load_theme(args)
+    theme_info = _resolve_preserve_mono(_load_theme(args), args)
     with tempfile.TemporaryDirectory(prefix="pptx-font-fix-") as tmp_dir:
         tmp_path = Path(tmp_dir)
         extract_pptx(args.src, tmp_path)
@@ -86,6 +96,15 @@ def main() -> None:
         help="Fix up the font theme and normalize all slide objects to use major/minor fonts correctly in a pptx file.",
     )
     parser_fix.add_argument('--theme', type=Path, required=True, help="The path to a theme json file.")
+    parser_fix.add_argument(
+        '--preserve-mono',
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Leave the text objects that already use a known monospace font untouched, "
+             "instead of replacing them with the theme's monospace font. "
+             "It overrides the theme's 'preserveMono' option when given. "
+             "The default is the theme's option, which is off unless set.",
+    )
     parser_fix.add_argument('src', type=Path, help="The source pptx file.")
     parser_fix.add_argument('dst', type=Path, help="The destination pptx file. You may set it same to `src`.")
     parser_fix.set_defaults(func=do_fix_pptx)
@@ -95,7 +114,7 @@ def main() -> None:
         help="Generate and register an Office font theme. "
              "Note that the font theme only defines major/minor typeface and "
              "things like making slide titles bold should be done with slide master templates. "
-             "It also does not support 'body-first-line-style' option. "
+             "It also does not support 'body-first-line-style' and 'preserveMono' options. "
              "To use the new font theme, you must restart Office apps to take effect.",
     )
     parser_gen.add_argument('--theme', type=Path, required=True, help="The path to a theme json file.")
