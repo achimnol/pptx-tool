@@ -13,7 +13,10 @@ from pptx_tool.fix import (
     _update_paragraph_style,
     fix_theme_font,
     local_tag,
+    normalize_chart_fonts,
+    normalize_diagram_fonts,
     normalize_master_fonts,
+    normalize_table_style_fonts,
     xmlns,
     xpath_elements,
 )
@@ -367,5 +370,104 @@ def test_normalize_slide_font_table_cells(make_theme: MakeTheme, preserve_mono: 
         "</a:p></a:txBody></a:tc></a:tr></a:tbl></a:graphicData></a:graphic></p:graphicFrame>"
     )
     _normalize_slide_font(root_elem, make_theme(preserve_mono=preserve_mono), log_prefix="test")
+    typefaces = [elem.get("typeface") for elem in xpath_elements(root_elem, "//a:latin | //a:ea")]
+    assert typefaces == ["+mn-lt", "+mn-lt", "+mn-ea", expected_mono, "+mn-lt"]
+
+
+@pytest.mark.parametrize(
+    "preserve_mono,expected",
+    [
+        (False, ["fontRef:minor", "font:MONO-LT,+mn-ea", "fontRef:major"]),
+        (True, ["fontRef:minor", "font:Consolas,굴림", "fontRef:major"]),
+    ],
+)
+def test_normalize_table_style_fonts(
+    tmp_path: Path, make_theme: MakeTheme, preserve_mono: bool, expected: list[str]
+) -> None:
+    """Explicit fonts in table styles must defer to the theme's minor font, except monospace ones."""
+    part_path = _write_part(
+        tmp_path,
+        "ppt/tableStyles.xml",
+        "<a:tblStyleLst><a:tblStyle>"
+        '<a:wholeTbl><a:tcTxStyle b="on">'
+        '<a:font><a:latin typeface="Arial"/><a:ea typeface="굴림"/><a:font script="Hang" typeface="굴림"/></a:font>'
+        '<a:schemeClr val="tx1"/>'
+        "</a:tcTxStyle></a:wholeTbl>"
+        '<a:firstRow><a:tcTxStyle><a:font><a:latin typeface="Consolas"/><a:ea typeface="굴림"/></a:font>'
+        "</a:tcTxStyle></a:firstRow>"
+        '<a:lastRow><a:tcTxStyle><a:fontRef idx="major"/></a:tcTxStyle></a:lastRow>'
+        "</a:tblStyle></a:tblStyleLst>",
+    )
+    normalize_table_style_fonts(tmp_path, make_theme(preserve_mono=preserve_mono))
+    root_elem = etree.parse(part_path)
+    summary = []
+    for tx_style_elem in xpath_elements(root_elem, "//a:tcTxStyle"):
+        font_elem = tx_style_elem[0]
+        if local_tag(font_elem) == "fontRef":
+            summary.append(f"fontRef:{font_elem.get('idx')}")
+        else:
+            summary.append("font:" + ",".join(elem.get("typeface") or "" for elem in font_elem))
+    assert summary == expected
+    # The bold attribute and the text color must be kept.
+    tx_style_elem = xpath_elements(root_elem, "//a:wholeTbl/a:tcTxStyle")[0]
+    assert tx_style_elem.get("b") == "on"
+    assert [local_tag(elem) for elem in tx_style_elem] == ["fontRef", "schemeClr"]
+
+
+def test_normalize_table_style_fonts_without_part(tmp_path: Path, make_theme: MakeTheme) -> None:
+    """A package without table styles must be left alone."""
+    normalize_table_style_fonts(tmp_path, make_theme())
+    assert not (tmp_path / "ppt" / "tableStyles.xml").exists()
+
+
+_TEXT_BODY = (
+    "<a:p>"
+    '<a:pPr><a:defRPr><a:latin typeface="Arial"/></a:defRPr></a:pPr>'
+    '<a:r><a:rPr><a:latin typeface="Arial"/><a:ea typeface="굴림"/></a:rPr><a:t>Label</a:t></a:r>'
+    '<a:r><a:rPr><a:latin typeface="Consolas"/></a:rPr><a:t>code()</a:t></a:r>'
+    '<a:endParaRPr><a:latin typeface="Arial"/></a:endParaRPr>'
+    "</a:p>"
+)
+
+
+@pytest.mark.parametrize("preserve_mono,expected_mono", [(False, "MONO-LT"), (True, "Consolas")])
+@pytest.mark.parametrize(
+    "relpath,body",
+    [
+        ("ppt/charts/chart1.xml", f"<c:chart><c:title><c:tx><c:rich>{_TEXT_BODY}</c:rich></c:tx></c:title></c:chart>"),
+        ("ppt/charts/chart2.xml", f"<c:txPr><a:bodyPr/>{_TEXT_BODY}</c:txPr>"),
+        ("ppt/charts/chartEx1.xml", f"<cx:chart><cx:txPr>{_TEXT_BODY}</cx:txPr></cx:chart>"),
+    ],
+    ids=["rich", "txPr", "chartEx"],
+)
+def test_normalize_chart_fonts(
+    tmp_path: Path, make_theme: MakeTheme, relpath: str, body: str, preserve_mono: bool, expected_mono: str
+) -> None:
+    part_path = _write_part(tmp_path, relpath, body)
+    normalize_chart_fonts(tmp_path, make_theme(preserve_mono=preserve_mono))
+    root_elem = etree.parse(part_path)
+    typefaces = [elem.get("typeface") for elem in xpath_elements(root_elem, "//a:latin | //a:ea")]
+    assert typefaces == ["+mn-lt", "+mn-lt", "+mn-ea", expected_mono, "+mn-lt"]
+
+
+@pytest.mark.parametrize("preserve_mono,expected_mono", [(False, "MONO-LT"), (True, "Consolas")])
+@pytest.mark.parametrize(
+    "relpath,body",
+    [
+        ("ppt/diagrams/data1.xml", f"<dgm:ptLst><dgm:pt><dgm:t><a:bodyPr/>{_TEXT_BODY}</dgm:t></dgm:pt></dgm:ptLst>"),
+        (
+            "ppt/diagrams/drawing1.xml",
+            f"<dsp:spTree><dsp:sp><dsp:txBody>{_TEXT_BODY}</dsp:txBody></dsp:sp></dsp:spTree>",
+        ),
+    ],
+    ids=["data", "drawing"],
+)
+def test_normalize_diagram_fonts(
+    tmp_path: Path, make_theme: MakeTheme, relpath: str, body: str, preserve_mono: bool, expected_mono: str
+) -> None:
+    """SmartArt keeps its text both in the data model and in the cached drawing PowerPoint renders."""
+    part_path = _write_part(tmp_path, relpath, body)
+    normalize_diagram_fonts(tmp_path, make_theme(preserve_mono=preserve_mono))
+    root_elem = etree.parse(part_path)
     typefaces = [elem.get("typeface") for elem in xpath_elements(root_elem, "//a:latin | //a:ea")]
     assert typefaces == ["+mn-lt", "+mn-lt", "+mn-ea", expected_mono, "+mn-lt"]
