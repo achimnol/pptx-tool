@@ -93,6 +93,7 @@ export function App() {
           fieldErrors={fieldErrors}
         />
         <VStack gap={6}>
+          <Heading level={2}>Operations</Heading>
           <TabList
             value={tab}
             onChange={(value) => setTab(value as TaskTab)}
@@ -100,7 +101,7 @@ export function App() {
             hasDivider
           >
             <Tab value="fix-fonts" label="Fix fonts" />
-            <Tab value="font-theme" label="Office font theme" />
+            <Tab value="font-theme" label="Export office font theme" />
           </TabList>
           {/* Keep both task panels mounted so that switching tabs keeps their inputs. */}
           <div hidden={tab !== 'fix-fonts'}>
@@ -126,7 +127,7 @@ export function App() {
 
   return (
     <AppShell
-      topNav={<TopNav heading={<Heading level={1}>pptx-tool</Heading>} />}
+      topNav={<TopNav className="app-topnav" heading={<Heading level={1}>pptx-tool</Heading>} />}
       contentPadding={6}
     >
       <div className="app-content">{content}</div>

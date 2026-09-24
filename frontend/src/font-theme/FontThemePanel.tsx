@@ -3,6 +3,7 @@ import {Banner} from '@astryxdesign/core/Banner';
 import {Button} from '@astryxdesign/core/Button';
 import {Heading} from '@astryxdesign/core/Heading';
 import {HStack} from '@astryxdesign/core/HStack';
+import {Text} from '@astryxdesign/core/Text';
 import {TextInput} from '@astryxdesign/core/TextInput';
 import {useToast} from '@astryxdesign/core/Toast';
 import {VStack} from '@astryxdesign/core/VStack';
@@ -22,6 +23,10 @@ export interface FontThemePanelProps {
 }
 
 type Action = 'download' | 'install';
+
+const MACOS_THEME_FONTS_DIR =
+  '~/Library/Group Containers/UBF8T346G9.Office/User Content.localized/Themes.localized/Theme Fonts';
+const WINDOWS_THEME_FONTS_DIR = '%APPDATA%\\Microsoft\\Templates\\Document Themes\\Theme Fonts';
 
 export function FontThemePanel({theme, isThemeValid, isLocal, onFieldErrors}: FontThemePanelProps) {
   const toast = useToast();
@@ -107,6 +112,16 @@ export function FontThemePanel({theme, isThemeValid, isLocal, onFieldErrors}: Fo
           />
         )}
       </HStack>
+      <VStack gap={1}>
+        <Text type="supporting">
+          Store the downloaded XML file in Office&rsquo;s theme fonts directory, then restart
+          Office:
+        </Text>
+        <Text type="supporting">macOS</Text>
+        <Text type="code">{MACOS_THEME_FONTS_DIR}</Text>
+        <Text type="supporting">Windows</Text>
+        <Text type="code">{WINDOWS_THEME_FONTS_DIR}</Text>
+      </VStack>
       {!isThemeValid && (
         <Banner status="warning" title="Fix the invalid theme fields before continuing." />
       )}

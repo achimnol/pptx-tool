@@ -3,6 +3,11 @@
   margin-inline: auto;
 }
 
+/* Align the top navigation with the content box: the shell pads the content by --spacing-6. */
+nav.app-topnav {
+  padding-inline: max(var(--spacing-6), calc((100% - 1200px) / 2));
+}
+
 .app-columns {
   display: grid;
   /* minmax(0, …) keeps wide content such as long file names from pushing a column past its share. */
