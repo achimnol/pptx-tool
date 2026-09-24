@@ -15,8 +15,21 @@ $ uv sync
 $ uv run pptx-tool fix-font --theme=pretendard input.pptx output.pptx
 ```
 
-The `--theme` option takes either the name of a bundled theme, such as `pretendard`, or the path to
+The `--theme` option takes either the id of a bundled theme, such as `pretendard`, or the path to
 a theme JSON file.  Check out the `pptx_tool/themes` directory for the bundled theme definitions.
+The bundled themes, with the display names shown in the web UI (major / minor fonts), are:
+
+- `freesentation` — Freesentation
+- `inter-pretendard` — Inter Display + Pretendard
+- `nanum-barun` — NanumBarunGothic
+- `nanum-square` — NanumSquare ExtraBold / NanumSquare
+- `nanum-square-round` — NanumSquareRound ExtraBold / NanumSquareRound
+- `office` — Office (Calibri + Malgun Gothic)
+- `paperlogy` — Paperlogy
+- `paperlogy-freesentation` — Paperlogy / Freesentation
+- `paperlogy-snu-appendard` — Paperlogy / SNU Appendard
+- `pretendard` — Pretendard
+- `snu-appendard` — SNU Appendard
 
 By default, the text objects using a known monospace font (see `known_monospace_fonts`
 in `pptx_tool/fix.py`) have their latin/hangul typefaces replaced with the theme's `monoFont`,

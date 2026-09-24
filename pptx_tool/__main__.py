@@ -12,6 +12,8 @@ from .pipeline import fix_pptx
 from .theme import ThemeError, resolve_theme_arg
 from .types import Theme
 
+_THEME_HELP = "The path to a theme json file, or the id of a bundled theme, such as 'pretendard'."
+
 
 def _resolve_preserve_mono(theme_info: Theme, args: argparse.Namespace) -> Theme:
     """Let an explicit `--preserve-mono`/`--no-preserve-mono` override the theme option."""
@@ -102,9 +104,7 @@ def main() -> None:
         "fix-font",
         help="Fix up the font theme and normalize all slide objects to use major/minor fonts correctly in a pptx file.",
     )
-    parser_fix.add_argument(
-        "--theme", required=True, help="The path to a theme json file, or the name of a bundled theme."
-    )
+    parser_fix.add_argument("--theme", required=True, help=_THEME_HELP)
     parser_fix.add_argument(
         "--preserve-mono",
         action=argparse.BooleanOptionalAction,
@@ -126,9 +126,7 @@ def main() -> None:
         "It also does not support 'body-first-line-style' and 'preserveMono' options. "
         "To use the new font theme, you must restart Office apps to take effect.",
     )
-    parser_gen.add_argument(
-        "--theme", required=True, help="The path to a theme json file, or the name of a bundled theme."
-    )
+    parser_gen.add_argument("--theme", required=True, help=_THEME_HELP)
     parser_gen.add_argument(
         "--overwrite", action="store_true", default=False, help="Overwrite the Office font theme file if already exists"
     )

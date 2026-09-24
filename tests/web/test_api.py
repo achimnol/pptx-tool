@@ -58,6 +58,8 @@ def test_list_themes(client: TestClient[Litestar]) -> None:
         "bodyFirstLevelStyle": "SemiBold",
         "preserveMono": False,
     }
+    assert "name" not in pretendard["theme"]
+    assert next(t for t in themes if t["id"] == "paperlogy-snu-appendard")["name"] == "Paperlogy / SNU Appendard"
 
 
 def test_list_monospace_fonts(client: TestClient[Litestar]) -> None:

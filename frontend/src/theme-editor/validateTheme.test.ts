@@ -19,6 +19,10 @@ describe('validateTheme', () => {
     expect(validateTheme(THEME)).toEqual({ok: true, theme: THEME});
   });
 
+  it('drops unknown top-level keys such as the display name', () => {
+    expect(validateTheme({...THEME, name: 'Pretendard'})).toEqual({ok: true, theme: THEME});
+  });
+
   it('defaults preserveMono to false', () => {
     const result = validateTheme(withValue('options.preserveMono', undefined));
     expect(result.ok && result.theme.options.preserveMono).toBe(false);

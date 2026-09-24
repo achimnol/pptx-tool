@@ -110,6 +110,35 @@ def test_list_bundled_themes() -> None:
     assert pretendard.theme.major_font_latin == "Pretendard"
 
 
+def test_bundled_theme_names() -> None:
+    themes = list_bundled_themes()
+    names = {t.id: t.name for t in themes}
+    assert all(name.strip() for name in names.values())
+    assert len(set(names.values())) == len(names)
+    # The display names tell the major and minor fonts apart.
+    assert names["paperlogy-snu-appendard"] == "Paperlogy / SNU Appendard"
+    assert names["inter-pretendard"] == "Inter Display + Pretendard"
+
+
+def test_bundled_theme_reads_name(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    (tmp_path / "named.json").write_text(json.dumps({**VALID_THEME, "name": "Named"}), encoding="utf-8")
+    monkeypatch.setattr("pptx_tool.theme._bundled_theme_dir", lambda: tmp_path)
+    assert [(t.id, t.name) for t in list_bundled_themes()] == [("named", "Named")]
+
+
+def test_bundled_theme_requires_name(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    (tmp_path / "unnamed.json").write_text(json.dumps(VALID_THEME), encoding="utf-8")
+    monkeypatch.setattr("pptx_tool.theme._bundled_theme_dir", lambda: tmp_path)
+    with pytest.raises(ThemeError, match="display name"):
+        list_bundled_themes()
+
+
+def test_theme_name_is_ignored_and_not_dumped() -> None:
+    data = dump_theme(load_theme({**VALID_THEME, "name": "Named"}))
+    assert data == dump_theme(load_theme(VALID_THEME))
+    assert "name" not in data
+
+
 def test_resolve_theme_arg_bundled_id() -> None:
     assert resolve_theme_arg("pretendard").major_font_latin == "Pretendard"
 
