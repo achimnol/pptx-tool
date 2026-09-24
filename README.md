@@ -92,6 +92,21 @@ is allowed only on a loopback address:
 $ uv run pptx-tool serve --local
 ```
 
+## Fonts
+
+The bundled themes use the following fonts, which are not shipped with Office.
+Install them from their official pages before opening the fixed presentations:
+
+- Pretendard: https://cactus.tistory.com/306
+- SNU Appendard: https://qbio.io/share/fonts/
+- Inter and Inter Display: https://fonts.google.com/specimen/Inter
+- Sarasa Term K: https://picaq.github.io/sarasa
+- Paperlogy: https://freesentation.blog/paperlogyfont
+- Freesentation: https://freesentation.blog/freesentation
+- Nanum Fonts: https://hangeul.naver.com/font
+
+The web UI lists the same links under the *Where to download the fonts?* button of the theme editor.
+
 ## Known Issues
 
 * After applying the font theme by this tool, there may be multiple major/minor fonts displayed in the font selection list.
