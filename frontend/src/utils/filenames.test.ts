@@ -1,6 +1,5 @@
 import {describe, expect, it} from 'vitest';
 
-import {base64ToBlob} from './download';
 import {defaultOutputName, ensurePptxSuffix, formatBytes} from './filenames';
 
 describe('filenames', () => {
@@ -20,11 +19,5 @@ describe('filenames', () => {
     expect(formatBytes(10)).toBe('10 B');
     expect(formatBytes(2048)).toBe('2.0 KiB');
     expect(formatBytes(3 * 1024 * 1024)).toBe('3.0 MiB');
-  });
-
-  it('decodes base64 into a blob', async () => {
-    const blob = base64ToBlob(btoa('PK\x03\x04'), 'application/zip');
-    expect(blob.type).toBe('application/zip');
-    expect(new Uint8Array(await blob.arrayBuffer())).toEqual(new Uint8Array([0x50, 0x4b, 3, 4]));
   });
 });

@@ -6,6 +6,8 @@ import {App} from './App';
 import {baseRoutes, mockFetch, THEME, type MockRoute} from './test/fixtures';
 import {FONT_DOWNLOADS} from './theme-editor/fontDownloads';
 
+const PPTX_MEDIA_TYPE = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+
 function renderApp(routes: MockRoute[] = []) {
   const {fetchMock, requests} = mockFetch([...baseRoutes(), ...routes]);
   vi.stubGlobal('fetch', fetchMock);
@@ -128,23 +130,20 @@ describe('App', () => {
   });
 
   it('fixes the fonts of a presentation', async () => {
-    const {requests} = renderApp([
-      {
-        method: 'POST',
-        path: '/api/fix-font',
-        body: {
-          filename: 'deck-fixed.pptx',
-          log: 'Current font scheme\n',
-          contentBase64: btoa('PK'),
-        },
-      },
-    ]);
+    const result = new FormData();
+    result.append('filename', 'deck-fixed.pptx');
+    result.append('log', 'Current font scheme\n');
+    result.append('file', new File(['PK'], 'deck-fixed.pptx', {type: PPTX_MEDIA_TYPE}));
+    const {requests} = renderApp([{method: 'POST', path: '/api/fix-font', body: result}]);
     await waitForEditor();
     const file = new File(['PK'], 'deck.pptx');
     await userEvent.upload(getFileInput('.pptx'), file);
     expect(screen.getByRole('textbox', {name: /Output file name/})).toHaveValue('deck-fixed.pptx');
     await userEvent.click(screen.getByRole('button', {name: 'Fix fonts'}));
     await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled());
+    const blob = vi.mocked(URL.createObjectURL).mock.calls[0]![0] as Blob;
+    expect(blob.type).toBe(PPTX_MEDIA_TYPE);
+    expect(await blob.text()).toBe('PK');
     const request = requests.find((r) => r.path === '/api/fix-font')!;
     const form = request.body as FormData;
     expect((form.get('file') as File).name).toBe('deck.pptx');

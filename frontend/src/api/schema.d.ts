@@ -130,7 +130,9 @@ export interface components {
     };
     /** FixFontResult */
     FixFontResult: {
-      contentBase64: string;
+      /** Format: binary */
+      file: string;
+      /** @description The suggested file name of the fixed pptx file. */
       filename: string;
       log: string;
     };
@@ -217,13 +219,13 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Request fulfilled, document follows */
+      /** @description The fixed pptx file with its suggested name and the processing log. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          'application/json': components['schemas']['FixFontResult'];
+          'multipart/form-data': components['schemas']['FixFontResult'];
         };
       };
       /** @description Bad request syntax or unsupported method */

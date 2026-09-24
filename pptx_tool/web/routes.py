@@ -1,7 +1,9 @@
-import base64
+import contextlib
 import os
+import secrets
 import shutil
 import zipfile
+from collections.abc import Iterator
 from pathlib import Path, PurePath
 from typing import Annotated, Any
 from urllib.parse import quote, urlsplit
@@ -12,7 +14,9 @@ from litestar.di import NamedDependency
 from litestar.enums import MediaType, RequestEncodingType
 from litestar.exceptions import HTTPException, PermissionDeniedException, ValidationException
 from litestar.handlers.base import BaseRouteHandler
+from litestar.openapi.datastructures import ResponseSpec
 from litestar.params import Body
+from litestar.response import Stream
 from litestar.status_codes import (
     HTTP_201_CREATED,
     HTTP_409_CONFLICT,
@@ -51,6 +55,7 @@ from .models import (
 from .storage import RequestStorage, RequestTooLargeError, StorageFullError
 
 _COPY_CHUNK_SIZE = 1024 * 1024
+PPTX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 
 
 def same_origin_guard(connection: ASGIConnection[Any, Any, Any, Any], _: BaseRouteHandler) -> None:
@@ -113,13 +118,53 @@ def get_config(web_config: NamedDependency[WebConfig]) -> AppConfig:
     return AppConfig(local=web_config.local, max_upload_size=web_config.max_upload_size)
 
 
-@post("/api/fix-font", status_code=200, sync_to_thread=True)
+def _form_part_header(name: str, content_type: str, filename: str | None = None) -> bytes:
+    disposition = f'form-data; name="{name}"'
+    if filename is not None:
+        # Escape the same characters as browsers do when they encode a form.
+        escaped = filename.replace('"', "%22").replace("\r", "%0D").replace("\n", "%0A")
+        disposition += f'; filename="{escaped}"'
+    return f"Content-Disposition: {disposition}\r\nContent-Type: {content_type}\r\n\r\n".encode()
+
+
+def _stream_fix_font_result(
+    cleanup: contextlib.ExitStack,
+    head: bytes,
+    dst_path: Path,
+    tail: bytes,
+) -> Iterator[bytes]:
+    """Stream the result from the disk, deleting the request directory when done or abandoned."""
+    with cleanup:
+        yield head
+        with dst_path.open("rb") as f:
+            while chunk := f.read(_COPY_CHUNK_SIZE):
+                yield chunk
+        yield tail
+
+
+@post(
+    "/api/fix-font",
+    status_code=200,
+    sync_to_thread=True,
+    responses={
+        200: ResponseSpec(
+            data_container=FixFontResult,
+            media_type=RequestEncodingType.MULTI_PART,
+            description="The fixed pptx file with its suggested name and the processing log.",
+            generate_examples=False,
+        )
+    },
+)
 def fix_font(
     data: Annotated[FixFontForm, Body(media_type=RequestEncodingType.MULTI_PART)],
     web_config: NamedDependency[WebConfig],
     storage: NamedDependency[RequestStorage],
-) -> FixFontResult:
-    """Fix up the fonts of the uploaded pptx file with the given theme."""
+) -> Stream:
+    """Fix up the fonts of the uploaded pptx file with the given theme.
+
+    The result is a multipart/form-data body streamed from the disk, so that the server memory does
+    not grow with the file size.
+    """
     theme_info = decode_theme_json(data.theme)
     stem = PurePath(data.file.filename or "presentation").stem or "presentation"
     # The upload is spooled to a seekable temporary file, so its size is known before copying it.
@@ -132,7 +177,8 @@ def fix_font(
             status_code=HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail=f"The file is larger than the limit ({web_config.max_upload_size} bytes).",
         )
-    with storage.request_dir() as req_dir:
+    with contextlib.ExitStack() as stack:
+        req_dir = stack.enter_context(storage.request_dir())
         src_path = req_dir / "src.pptx"
         dst_path = req_dir / "dst.pptx"
         _reserve_storage(storage, req_dir, upload_size)
@@ -162,11 +208,26 @@ def fix_font(
                     status_code=HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=f"Failed to process the presentation: {message}",
                 ) from e
-        content = dst_path.read_bytes()
-    return FixFontResult(
-        filename=f"{stem}-fixed.pptx",
-        log=log.text,
-        content_base64=base64.b64encode(content).decode("ascii"),
+        filename = f"{stem}-fixed.pptx"
+        boundary = secrets.token_hex(16).encode()
+        head = b"".join([
+            b"--" + boundary + b"\r\n",
+            _form_part_header("filename", "text/plain; charset=utf-8"),
+            filename.encode(),
+            b"\r\n--" + boundary + b"\r\n",
+            _form_part_header("log", "text/plain; charset=utf-8"),
+            log.text.encode(),
+            b"\r\n--" + boundary + b"\r\n",
+            _form_part_header("file", PPTX_MEDIA_TYPE, filename),
+        ])
+        tail = b"\r\n--" + boundary + b"--\r\n"
+        content_length = len(head) + dst_path.stat().st_size + len(tail)
+        # The stream takes over the request directory, which stays reserved until it is sent.
+        stream = _stream_fix_font_result(stack.pop_all(), head, dst_path, tail)
+    return Stream(
+        stream,
+        media_type=f"multipart/form-data; boundary={boundary.decode()}",
+        headers={"Content-Length": str(content_length)},
     )
 
 

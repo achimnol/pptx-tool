@@ -50,10 +50,12 @@ class FixFontForm(msgspec.Struct):
     theme: Annotated[str, msgspec.Meta(description="The theme definition (ThemeData) encoded as JSON.")]
 
 
-class FixFontResult(msgspec.Struct, rename="camel"):
-    filename: str
+class FixFontResult(msgspec.Struct):
+    """The parts of the multipart/form-data response of the fix-font request."""
+
+    filename: Annotated[str, msgspec.Meta(description="The suggested file name of the fixed pptx file.")]
     log: str
-    content_base64: str
+    file: UploadFile
 
 
 class FontThemeRequest(msgspec.Struct):

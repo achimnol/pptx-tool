@@ -58,10 +58,13 @@
       },
       "FixFontResult": {
         "properties": {
-          "contentBase64": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "type": "string"
           },
           "filename": {
+            "description": "The suggested file name of the fixed pptx file.",
             "type": "string"
           },
           "log": {
@@ -69,7 +72,7 @@
           }
         },
         "required": [
-          "contentBase64",
+          "file",
           "filename",
           "log"
         ],
@@ -256,14 +259,13 @@
         "responses": {
           "200": {
             "content": {
-              "application/json": {
+              "multipart/form-data": {
                 "schema": {
                   "$ref": "#/components/schemas/FixFontResult"
                 }
               }
             },
-            "description": "Request fulfilled, document follows",
-            "headers": {}
+            "description": "The fixed pptx file with its suggested name and the processing log."
           },
           "400": {
             "content": {
