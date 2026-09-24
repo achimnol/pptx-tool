@@ -1,0 +1,12 @@
+.git
+.github
+.venv
+.mypy_cache
+.ruff_cache
+.pytest_cache
+**/__pycache__
+dist
+tests
+frontend/node_modules
+frontend/dist
+pptx_tool/web/static

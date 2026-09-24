@@ -105,6 +105,21 @@ is allowed only on a loopback address:
 $ uv run pptx-tool serve --local
 ```
 
+### Container image
+
+The `Dockerfile` builds the web UI image with the `web` extra and the built frontend.
+Tagged releases (`v*`) are published to `ghcr.io/achimnol/pptx-tool` by the `Image` workflow.
+The image runs as a non-root user and needs only `/tmp` to be writable:
+
+```console
+$ docker build -t pptx-tool .
+$ docker run --rm --read-only --tmpfs /tmp -p 8000:8000 pptx-tool
+```
+
+The default command is `serve --host=0.0.0.0 --port=8000`; pass your own arguments to override it,
+e.g. `--max-upload-mb=100`.  `--local` is refused on a non-loopback address, so it is not available
+in the container.
+
 ## Fonts
 
 The bundled themes use the following fonts, which are not shipped with Office.
