@@ -1,7 +1,6 @@
 import {Banner} from '@astryxdesign/core/Banner';
 import {Button} from '@astryxdesign/core/Button';
 import {FileInput} from '@astryxdesign/core/FileInput';
-import {Heading} from '@astryxdesign/core/Heading';
 import {TextInput} from '@astryxdesign/core/TextInput';
 import {useToast} from '@astryxdesign/core/Toast';
 import {VStack} from '@astryxdesign/core/VStack';
@@ -67,7 +66,6 @@ export function FixFontsPanel({
   const canRun = file !== null && isThemeValid && !isRunning;
   return (
     <VStack gap={4}>
-      <Heading level={2}>Presentation</Heading>
       <FileInput
         label="Source file"
         mode="dropzone"

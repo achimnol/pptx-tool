@@ -1,0 +1,85 @@
+.app-content {
+  max-width: 1200px;
+  margin-inline: auto;
+}
+
+/* Align the top navigation with the content box: the shell pads the content by --spacing-6. */
+nav.app-topnav {
+  padding-inline: max(var(--spacing-6), calc((100% - 1200px) / 2));
+}
+
+.app-columns {
+  display: grid;
+  /* minmax(0, …) keeps wide content such as long file names from pushing a column past its share. */
+  grid-template-columns: minmax(0, 7fr) minmax(0, 3fr);
+  gap: var(--spacing-8);
+  align-items: start;
+}
+
+/* Below the Astryx `lg` width tier, the 30% column is too narrow for the task panels. */
+@media (width < 1024px) {
+  .app-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Size the path copy button and its icon to the surrounding supporting text. */
+button.copyable-path-button {
+  height: calc(var(--text-supporting-size) + 0.5rem);
+  width: calc(var(--text-supporting-size) + 0.5rem);
+  min-width: 0;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+button.copyable-path-button span:has(> .copyable-path-icon) {
+  width: var(--text-supporting-size);
+  height: var(--text-supporting-size);
+  font-size: var(--text-supporting-size);
+}
+
+.copyable-path-icon {
+  display: inline-flex;
+  width: 100%;
+  height: 100%;
+}
+
+button.copyable-path-button .copyable-path-icon > *,
+button.copyable-path-button .copyable-path-icon svg {
+  width: 100%;
+  height: 100%;
+  font-size: inherit;
+}
+
+.copyable-path-icon.is-copied {
+  color: var(--color-success);
+}
+
+/* The initial copy icon stays still; later swaps animate in both directions. */
+.copyable-path-icon[data-animated].is-copied {
+  animation: copyable-path-check-in var(--duration-medium) cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.copyable-path-icon[data-animated]:not(.is-copied) {
+  animation: copyable-path-copy-in var(--duration-medium) ease-out;
+}
+
+@keyframes copyable-path-check-in {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+}
+
+@keyframes copyable-path-copy-in {
+  from {
+    opacity: 0;
+    transform: rotate(-90deg) scale(0.6);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .copyable-path-icon[data-animated] {
+    animation: none;
+  }
+}

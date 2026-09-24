@@ -1,6 +1,7 @@
+import './App.css';
+
 import {AppShell} from '@astryxdesign/core/AppShell';
 import {Banner} from '@astryxdesign/core/Banner';
-import {Grid} from '@astryxdesign/core/Grid';
 import {Heading} from '@astryxdesign/core/Heading';
 import {Spinner} from '@astryxdesign/core/Spinner';
 import {Tab, TabList} from '@astryxdesign/core/TabList';
@@ -80,9 +81,29 @@ export function App() {
     content = <Spinner label="Loading" />;
   } else {
     content = (
-      <Grid columns={{minWidth: 420, max: 2, repeat: 'fit'}} gap={8} align="start">
-        {/* Keep both task panels mounted so that switching tabs keeps their inputs. */}
-        <div>
+      <div className="app-columns">
+        <ThemeEditor
+          state={editorState}
+          dispatch={(action) => {
+            setServerFieldErrors([]);
+            dispatch(action);
+          }}
+          presets={presets.data ?? []}
+          monospaceFonts={monospaceFonts.data ?? []}
+          fieldErrors={fieldErrors}
+        />
+        <VStack gap={6}>
+          <Heading level={2}>Operations</Heading>
+          <TabList
+            value={tab}
+            onChange={(value) => setTab(value as TaskTab)}
+            role="tablist"
+            hasDivider
+          >
+            <Tab value="fix-fonts" label="Fix fonts" />
+            <Tab value="font-theme" label="Export office font theme" />
+          </TabList>
+          {/* Keep both task panels mounted so that switching tabs keeps their inputs. */}
           <div hidden={tab !== 'fix-fonts'}>
             <FixFontsPanel
               theme={editorState.theme}
@@ -99,38 +120,17 @@ export function App() {
               onFieldErrors={setServerFieldErrors}
             />
           </div>
-        </div>
-        <ThemeEditor
-          state={editorState}
-          dispatch={(action) => {
-            setServerFieldErrors([]);
-            dispatch(action);
-          }}
-          presets={presets.data ?? []}
-          monospaceFonts={monospaceFonts.data ?? []}
-          fieldErrors={fieldErrors}
-        />
-      </Grid>
+        </VStack>
+      </div>
     );
   }
 
   return (
     <AppShell
-      topNav={<TopNav heading={<Heading level={1}>pptx-tool</Heading>} />}
+      topNav={<TopNav className="app-topnav" heading={<Heading level={1}>pptx-tool</Heading>} />}
       contentPadding={6}
     >
-      <VStack gap={6}>
-        <TabList
-          value={tab}
-          onChange={(value) => setTab(value as TaskTab)}
-          role="tablist"
-          hasDivider
-        >
-          <Tab value="fix-fonts" label="Fix fonts" />
-          <Tab value="font-theme" label="Office font theme" />
-        </TabList>
-        {content}
-      </VStack>
+      <div className="app-content">{content}</div>
     </AppShell>
   );
 }

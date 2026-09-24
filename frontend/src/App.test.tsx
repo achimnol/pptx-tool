@@ -32,6 +32,60 @@ describe('App', () => {
     expect(screen.getByRole('textbox', {name: /Monospace · Hangul/})).toHaveValue('모노');
   });
 
+  it('places the theme editor before the operations panel', async () => {
+    renderApp();
+    await waitForEditor();
+    const theme = screen.getByRole('heading', {name: 'Theme'});
+    const operations = screen.getByRole('heading', {name: 'Operations'});
+    expect(
+      theme.compareDocumentPosition(operations) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    // The tabs only switch the operations panel, so they live in the same column.
+    const column = operations.closest('.app-columns > *');
+    expect(theme.closest('.app-columns > *')?.previousElementSibling).toBeNull();
+    expect(column).toContainElement(screen.getByRole('tablist'));
+    expect(document.querySelector('.app-content')).toContainElement(theme);
+  });
+
+  it('copies the Office theme fonts path', async () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    vi.spyOn(navigator, 'clipboard', 'get').mockReturnValue({writeText} as unknown as Clipboard);
+    renderApp();
+    await waitForEditor();
+    await userEvent.click(screen.getByRole('tab', {name: 'Export office font theme'}));
+    await userEvent.click(screen.getByRole('button', {name: 'Copy the Windows path'}));
+    expect(writeText).toHaveBeenCalledWith(
+      '%APPDATA%\\Microsoft\\Templates\\Document Themes\\Theme Fonts',
+    );
+    expect(
+      await screen.findByRole('button', {name: 'Copied the Windows path'}),
+    ).toBeInTheDocument();
+    // The checkmark reverts to the copy icon shortly afterwards.
+    expect(
+      await screen.findByRole('button', {name: 'Copy the Windows path'}, {timeout: 3000}),
+    ).toBeInTheDocument();
+  });
+
+  it('copies the Office theme fonts path without the async clipboard API', async () => {
+    vi.spyOn(navigator, 'clipboard', 'get').mockReturnValue(undefined as unknown as Clipboard);
+    const copied: string[] = [];
+    Object.defineProperty(document, 'execCommand', {
+      value: vi.fn((command: string) => {
+        if (command === 'copy') copied.push((document.activeElement as HTMLTextAreaElement).value);
+        return true;
+      }),
+      configurable: true,
+    });
+    renderApp();
+    await waitForEditor();
+    await userEvent.click(screen.getByRole('tab', {name: 'Export office font theme'}));
+    await userEvent.click(screen.getByRole('button', {name: 'Copy the macOS path'}));
+    expect(copied).toEqual([
+      '~/Library/Group Containers/UBF8T346G9.Office/User Content.localized/Themes.localized/Theme Fonts',
+    ]);
+    expect(await screen.findByRole('button', {name: 'Copied the macOS path'})).toBeInTheDocument();
+  });
+
   it('marks an edited preset as modified', async () => {
     renderApp();
     const input = await waitForEditor();
@@ -113,7 +167,7 @@ describe('App tabs', () => {
     renderApp();
     const input = await waitForEditor();
     await userEvent.type(input, ' X');
-    await userEvent.click(screen.getByRole('tab', {name: 'Office font theme'}));
+    await userEvent.click(screen.getByRole('tab', {name: 'Export office font theme'}));
     expect(await screen.findByRole('textbox', {name: /Font theme name/})).toBeInTheDocument();
     expect(screen.getByRole('textbox', {name: /Heading · Latin/})).toHaveValue('Major Sans X');
   });
@@ -122,7 +176,7 @@ describe('App tabs', () => {
     renderApp();
     await waitForEditor();
     await userEvent.upload(getFileInput('.pptx'), new File(['PK'], 'deck.pptx'));
-    await userEvent.click(screen.getByRole('tab', {name: 'Office font theme'}));
+    await userEvent.click(screen.getByRole('tab', {name: 'Export office font theme'}));
     await userEvent.click(screen.getByRole('tab', {name: 'Fix fonts'}));
     expect(screen.getByRole('textbox', {name: /Output file name/})).toHaveValue('deck-fixed.pptx');
   });
