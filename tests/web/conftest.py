@@ -26,12 +26,18 @@ def font_theme_dir(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def make_client(font_theme_dir: Path) -> Iterator[MakeClient]:
+def tmp_dir(tmp_path: Path) -> Path:
+    """The temporary storage root of the server under test, kept away from the real /tmp/pptx-tool."""
+    return tmp_path / "pptx-tool"
+
+
+@pytest.fixture
+def make_client(font_theme_dir: Path, tmp_dir: Path) -> Iterator[MakeClient]:
     clients: list[TestClient[Litestar]] = []
 
     def _make_client(**overrides: Any) -> TestClient[Litestar]:
         web_config = dataclasses.replace(
-            WebConfig(static_dir=None, font_theme_dir=font_theme_dir, allowed_hosts=()),
+            WebConfig(static_dir=None, font_theme_dir=font_theme_dir, allowed_hosts=(), tmp_dir=tmp_dir),
             **overrides,
         )
         client = TestClient(create_app(web_config))

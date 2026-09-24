@@ -74,7 +74,12 @@ $ uv run pptx-tool serve
 
 Then open http://127.0.0.1:8000 in the browser.  The server only listens on the loopback
 interface by default; use `--host` and `--port` to change it, and `--max-upload-mb` to change the
-upload size limit (50 MiB by default).
+upload size limit (200 MiB by default).
+The uploaded and intermediate files are kept in per-request subdirectories of `/tmp/pptx-tool`
+(`--tmp-dir`), limited to 1 GiB in total (`--tmp-quota-mb`); each request is deleted when done, and
+any leftovers of earlier requests are deleted to make room.  Give each server process its own
+directory.  Note that the server framework spools each upload in the system temporary directory
+while the request is processed, so the peak disk usage is the quota plus the concurrent uploads.
 When listening on a loopback address, the server checks the `Host` header against DNS rebinding,
 so access it via `127.0.0.1`, `localhost` or `[::1]` with the same port as the server, not through
 a port-forwarding tunnel or a reverse proxy with a different port.

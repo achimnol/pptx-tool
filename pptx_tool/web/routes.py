@@ -1,6 +1,6 @@
 import base64
 import os
-import tempfile
+import shutil
 import zipfile
 from pathlib import Path, PurePath
 from typing import Annotated, Any
@@ -48,6 +48,7 @@ from .models import (
     from_core_theme,
     to_core_theme,
 )
+from .storage import RequestStorage, RequestTooLargeError, StorageFullError
 
 _COPY_CHUNK_SIZE = 1024 * 1024
 
@@ -66,6 +67,25 @@ def _hide_dir(message: str, directory: str) -> str:
     for path in {directory, os.path.realpath(directory)}:
         message = message.replace(path + os.sep, "").replace(path, "")
     return message
+
+
+def _reserve_storage(storage: RequestStorage, req_dir: Path, needed: int) -> None:
+    try:
+        storage.reserve(req_dir, needed)
+    except RequestTooLargeError as e:
+        raise HTTPException(status_code=HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=str(e)) from e
+    except StorageFullError as e:
+        raise HTTPException(
+            status_code=HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"{e} Try again later.",
+            headers={"Retry-After": "5"},
+        ) from e
+
+
+def _declared_size(path: Path) -> int:
+    """The total uncompressed size claimed by the archive headers."""
+    with zipfile.ZipFile(path) as zf:
+        return sum(m.file_size for m in zf.infolist())
 
 
 def _validate_font_theme_name(name: str) -> str:
@@ -97,23 +117,33 @@ def get_config(web_config: NamedDependency[WebConfig]) -> AppConfig:
 def fix_font(
     data: Annotated[FixFontForm, Body(media_type=RequestEncodingType.MULTI_PART)],
     web_config: NamedDependency[WebConfig],
+    storage: NamedDependency[RequestStorage],
 ) -> FixFontResult:
     """Fix up the fonts of the uploaded pptx file with the given theme."""
     theme_info = decode_theme_json(data.theme)
     stem = PurePath(data.file.filename or "presentation").stem or "presentation"
-    with tempfile.TemporaryDirectory(prefix="pptx-tool-web-") as tmp_dir:
-        src_path = Path(tmp_dir) / "src.pptx"
-        dst_path = Path(tmp_dir) / "dst.pptx"
-        size = 0
+    # The upload is spooled to a seekable temporary file, so its size is known before copying it.
+    upload = data.file.file
+    upload.seek(0, os.SEEK_END)
+    upload_size = upload.tell()
+    upload.seek(0)
+    if upload_size > web_config.max_upload_size:
+        raise HTTPException(
+            status_code=HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"The file is larger than the limit ({web_config.max_upload_size} bytes).",
+        )
+    with storage.request_dir() as req_dir:
+        src_path = req_dir / "src.pptx"
+        dst_path = req_dir / "dst.pptx"
+        _reserve_storage(storage, req_dir, upload_size)
         with src_path.open("wb") as f:
-            while chunk := data.file.file.read(_COPY_CHUNK_SIZE):
-                size += len(chunk)
-                if size > web_config.max_upload_size:
-                    raise HTTPException(
-                        status_code=HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                        detail=f"The file is larger than the limit ({web_config.max_upload_size} bytes).",
-                    )
-                f.write(chunk)
+            shutil.copyfileobj(upload, f, _COPY_CHUNK_SIZE)
+        try:
+            declared_size = _declared_size(src_path)
+        except (zipfile.BadZipFile, EOFError, ValueError) as e:
+            raise ValidationException(detail=f"Not a valid pptx file: {e}") from e
+        # The upload, the extracted package, and the rebuilt pptx, which is about the size of the upload.
+        _reserve_storage(storage, req_dir, 2 * upload_size + declared_size)
         with capture_log() as log:
             try:
                 fix_pptx(
@@ -121,15 +151,16 @@ def fix_font(
                     dst_path,
                     theme_info,
                     limits=web_config.archive_limits,
-                    work_dir=Path(tmp_dir) / "work",
+                    work_dir=req_dir / "work",
                 )
             except (zipfile.BadZipFile, UnsafeArchiveError) as e:
                 raise ValidationException(detail=f"Not a valid pptx file: {e}") from e
             # ValueError comes from unexpected nodes such as XML comments in the text properties.
             except (OSError, etree.XMLSyntaxError, LookupError, ValueError) as e:
+                message = _hide_dir(_hide_dir(str(e), str(req_dir)), str(web_config.tmp_dir))
                 raise HTTPException(
                     status_code=HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail=f"Failed to process the presentation: {_hide_dir(str(e), tmp_dir)}",
+                    detail=f"Failed to process the presentation: {message}",
                 ) from e
         content = dst_path.read_bytes()
     return FixFontResult(
