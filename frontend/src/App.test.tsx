@@ -60,6 +60,30 @@ describe('App', () => {
     expect(
       await screen.findByRole('button', {name: 'Copied the Windows path'}),
     ).toBeInTheDocument();
+    // The checkmark reverts to the copy icon shortly afterwards.
+    expect(
+      await screen.findByRole('button', {name: 'Copy the Windows path'}, {timeout: 3000}),
+    ).toBeInTheDocument();
+  });
+
+  it('copies the Office theme fonts path without the async clipboard API', async () => {
+    vi.spyOn(navigator, 'clipboard', 'get').mockReturnValue(undefined as unknown as Clipboard);
+    const copied: string[] = [];
+    Object.defineProperty(document, 'execCommand', {
+      value: vi.fn((command: string) => {
+        if (command === 'copy') copied.push((document.activeElement as HTMLTextAreaElement).value);
+        return true;
+      }),
+      configurable: true,
+    });
+    renderApp();
+    await waitForEditor();
+    await userEvent.click(screen.getByRole('tab', {name: 'Export office font theme'}));
+    await userEvent.click(screen.getByRole('button', {name: 'Copy the macOS path'}));
+    expect(copied).toEqual([
+      '~/Library/Group Containers/UBF8T346G9.Office/User Content.localized/Themes.localized/Theme Fonts',
+    ]);
+    expect(await screen.findByRole('button', {name: 'Copied the macOS path'})).toBeInTheDocument();
   });
 
   it('marks an edited preset as modified', async () => {
