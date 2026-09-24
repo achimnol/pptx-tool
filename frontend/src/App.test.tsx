@@ -47,6 +47,21 @@ describe('App', () => {
     expect(document.querySelector('.app-content')).toContainElement(theme);
   });
 
+  it('copies the Office theme fonts path', async () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    vi.spyOn(navigator, 'clipboard', 'get').mockReturnValue({writeText} as unknown as Clipboard);
+    renderApp();
+    await waitForEditor();
+    await userEvent.click(screen.getByRole('tab', {name: 'Export office font theme'}));
+    await userEvent.click(screen.getByRole('button', {name: 'Copy the Windows path'}));
+    expect(writeText).toHaveBeenCalledWith(
+      '%APPDATA%\\Microsoft\\Templates\\Document Themes\\Theme Fonts',
+    );
+    expect(
+      await screen.findByRole('button', {name: 'Copied the Windows path'}),
+    ).toBeInTheDocument();
+  });
+
   it('marks an edited preset as modified', async () => {
     renderApp();
     const input = await waitForEditor();
