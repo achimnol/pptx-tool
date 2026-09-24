@@ -108,7 +108,8 @@ $ uv run pptx-tool serve --local
 ### Container image
 
 The `Dockerfile` builds the web UI image with the `web` extra and the built frontend.
-Tagged releases (`v*`) are published to `ghcr.io/achimnol/pptx-tool` by the `Image` workflow.
+Tagged releases (`v*`) are published to `ghcr.io/achimnol/pptx-tool` by the `Image` workflow,
+and the latest main is published as the `edge` tag.
 The image runs as a non-root user and needs only `/tmp` to be writable:
 
 ```console
