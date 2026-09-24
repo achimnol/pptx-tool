@@ -186,9 +186,20 @@ $ pnpm -C frontend dev
 
 The frontend is checked with `pnpm -C frontend typecheck`, `pnpm -C frontend lint` and
 `pnpm -C frontend test`.  The frontend API types are generated from the OpenAPI schema of the
-backend, so regenerate them after changing the API models:
+backend, so regenerate them after changing the API models or the package version (the schema
+records the version in `info.version`):
 
 ```console
 $ pnpm -C frontend gen:openapi
 $ pnpm -C frontend gen:api
 ```
+
+CI fails if `frontend/openapi.json` or `frontend/src/api/schema.d.ts` differs from the regenerated
+output.
+
+### Releasing
+
+1. Set the new version in `pyproject.toml` and `frontend/package.json`, then run `uv lock`.
+2. Regenerate the OpenAPI schema and the API types as above.
+3. Commit the changes as `chore: Release vX.Y.Z` and tag the commit with `git tag -a vX.Y.Z`.
+4. Push the commit and the tag.  The `Image` workflow publishes `ghcr.io/achimnol/pptx-tool:X.Y.Z`.
