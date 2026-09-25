@@ -1,9 +1,9 @@
-import {render, screen, waitFor} from '@testing-library/react';
+import {cleanup, render, screen, waitFor} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {describe, expect, it, vi} from 'vitest';
 
 import {App} from './App';
-import {baseRoutes, mockFetch, THEME, type MockRoute} from './test/fixtures';
+import {baseRoutes, mockFetch, PRESETS, THEME, type MockRoute} from './test/fixtures';
 import {FONT_DOWNLOADS} from './theme-editor/fontDownloads';
 
 function renderApp(routes: MockRoute[] = []) {
@@ -200,6 +200,58 @@ describe('App', () => {
     vi.stubGlobal('fetch', () => Promise.reject(new TypeError('Failed to fetch')));
     render(<App />);
     expect(await screen.findByText('Failed to connect to the server')).toBeInTheDocument();
+  });
+});
+
+describe('Stored choices', () => {
+  const store = (key: string, value: unknown) =>
+    localStorage.setItem(`pptx-tool:v1:${key}`, JSON.stringify(value));
+
+  it('restores the theme, the tab and the font theme name of the previous visit', async () => {
+    renderApp();
+    await userEvent.type(await waitForEditor(), ' X');
+    await userEvent.click(screen.getByRole('tab', {name: 'Export office font theme'}));
+    await userEvent.type(screen.getByRole('textbox', {name: /Font theme name/}), 'My Theme');
+    cleanup();
+
+    renderApp();
+    expect(await waitForEditor()).toHaveValue('Major Sans X');
+    expect(screen.getByRole('tab', {name: 'Export office font theme'})).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.getByRole('textbox', {name: /Font theme name/})).toHaveValue('My Theme');
+  });
+
+  it('restores the chosen preset', async () => {
+    store('themeEditor', {presetId: 'office', theme: PRESETS[1]!.theme});
+    renderApp();
+    expect(await screen.findByRole('textbox', {name: /Heading · Latin/})).toHaveValue(
+      'Aptos Display',
+    );
+    expect(screen.queryByText('Imported theme')).not.toBeInTheDocument();
+  });
+
+  it('keeps the theme of a preset that is no longer bundled as an imported one', async () => {
+    const theme = {...THEME, majorFont: {...THEME.majorFont, latin: 'Old Sans'}};
+    store('themeEditor', {presetId: 'removed', theme});
+    renderApp();
+    expect(await waitForEditor()).toHaveValue('Old Sans');
+    expect(screen.getAllByText('Imported theme')[0]).toBeInTheDocument();
+  });
+
+  it.each([
+    ['an invalid theme', JSON.stringify({presetId: 'office', theme: {majorFont: {}}})],
+    ['malformed JSON', '{'],
+  ])('ignores invalid stored values with %s', async (_, storedEditorState) => {
+    localStorage.setItem('pptx-tool:v1:themeEditor', storedEditorState);
+    store('tab', 'unknown');
+    store('fontThemeName', 42);
+    renderApp();
+    expect(await waitForEditor()).toHaveValue('Major Sans');
+    expect(screen.getByRole('tab', {name: 'Fix fonts'})).toHaveAttribute('aria-selected', 'true');
+    await userEvent.click(screen.getByRole('tab', {name: 'Export office font theme'}));
+    expect(screen.getByRole('textbox', {name: /Font theme name/})).toHaveValue('');
   });
 });
 

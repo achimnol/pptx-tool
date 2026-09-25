@@ -11,6 +11,7 @@ import {useState} from 'react';
 import {downloadFontTheme, installFontTheme} from '../api/actions';
 import {ApiError, type FieldError} from '../api/errors';
 import {CopyablePath} from '../components/CopyablePath';
+import {usePersistentState} from '../hooks/usePersistentState';
 import type {ThemeData} from '../api/types';
 import {downloadBlob} from '../utils/download';
 import {validateFontThemeName} from './validateFontThemeName';
@@ -30,8 +31,11 @@ const WINDOWS_THEME_FONTS_DIR = '%APPDATA%\\Microsoft\\Templates\\Document Theme
 
 export function FontThemePanel({theme, isThemeValid, isLocal, onFieldErrors}: FontThemePanelProps) {
   const toast = useToast();
-  const [name, setName] = useState('');
-  const [isNameTouched, setIsNameTouched] = useState(false);
+  const [name, setName] = usePersistentState('fontThemeName', '', (value) =>
+    typeof value === 'string' ? value : undefined,
+  );
+  // A name restored from the previous visit is validated right away.
+  const [isNameTouched, setIsNameTouched] = useState(name !== '');
   const [runningAction, setRunningAction] = useState<Action | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isConfirmingOverwrite, setIsConfirmingOverwrite] = useState(false);
