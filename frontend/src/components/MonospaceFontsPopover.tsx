@@ -3,6 +3,8 @@ import {Popover} from '@astryxdesign/core/Popover';
 import {Text} from '@astryxdesign/core/Text';
 import {VStack} from '@astryxdesign/core/VStack';
 
+import {HelpIcon} from './HelpIcon';
+
 export interface MonospaceFontsPopoverProps {
   fonts: readonly string[];
 }
@@ -22,7 +24,12 @@ export function MonospaceFontsPopover({fonts}: MonospaceFontsPopoverProps) {
         </VStack>
       }
     >
-      <Button label="Which fonts count as monospace?" variant="ghost" size="sm" />
+      <Button
+        label="Which fonts count as monospace?"
+        icon={<HelpIcon />}
+        variant="ghost"
+        size="sm"
+      />
     </Popover>
   );
 }
