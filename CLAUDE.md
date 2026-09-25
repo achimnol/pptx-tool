@@ -9,3 +9,4 @@
   - Bump the version numbers in `pyproject.toml`, `frontend/package.json`, `uv.lock`
   - Ensure updates of the API schema files mentioning the package version.
   - Commit with the message: `chore: Release vX.Y.Z`
+  - Create an annotated tag on it and push.
