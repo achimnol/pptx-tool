@@ -6,8 +6,6 @@ import {App} from './App';
 import {baseRoutes, mockFetch, THEME, type MockRoute} from './test/fixtures';
 import {FONT_DOWNLOADS} from './theme-editor/fontDownloads';
 
-const PPTX_MEDIA_TYPE = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
-
 function renderApp(routes: MockRoute[] = []) {
   const {fetchMock, requests} = mockFetch([...baseRoutes(), ...routes]);
   vi.stubGlobal('fetch', fetchMock);
@@ -130,20 +128,38 @@ describe('App', () => {
   });
 
   it('fixes the fonts of a presentation', async () => {
-    const result = new FormData();
-    result.append('filename', 'deck-fixed.pptx');
-    result.append('log', 'Current font scheme\n');
-    result.append('file', new File(['PK'], 'deck-fixed.pptx', {type: PPTX_MEDIA_TYPE}));
-    const {requests} = renderApp([{method: 'POST', path: '/api/fix-font', body: result}]);
+    const {requests} = renderApp([
+      {
+        method: 'POST',
+        path: '/api/fix-font',
+        body: {
+          filename: 'deck-fixed.pptx',
+          log: 'Current font scheme\n',
+          downloadUrl: '/api/fix-font/abc',
+        },
+      },
+    ]);
+    const clicked: HTMLAnchorElement[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      clicked.push(this);
+    });
     await waitForEditor();
     const file = new File(['PK'], 'deck.pptx');
     await userEvent.upload(getFileInput('.pptx'), file);
-    expect(screen.getByRole('textbox', {name: /Output file name/})).toHaveValue('deck-fixed.pptx');
+    const outputName = screen.getByRole('textbox', {name: /Output file name/});
+    expect(outputName).toHaveValue('deck-fixed.pptx');
+    await userEvent.clear(outputName);
+    await userEvent.type(outputName, '발표 최종');
     await userEvent.click(screen.getByRole('button', {name: 'Fix fonts'}));
-    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled());
-    const blob = vi.mocked(URL.createObjectURL).mock.calls[0]![0] as Blob;
-    expect(blob.type).toBe(PPTX_MEDIA_TYPE);
-    expect(await blob.text()).toBe('PK');
+    await waitFor(() => expect(clicked).toHaveLength(1));
+    // The browser downloads the file from the server by itself, without holding it in a blob.
+    expect(clicked[0]!.getAttribute('href')).toBe(
+      `/api/fix-font/abc?filename=${encodeURIComponent('발표 최종.pptx')}`,
+    );
+    expect(clicked[0]!.download).toBe('발표 최종.pptx');
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
     const request = requests.find((r) => r.path === '/api/fix-font')!;
     const form = request.body as FormData;
     expect((form.get('file') as File).name).toBe('deck.pptx');

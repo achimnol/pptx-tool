@@ -1,22 +1,19 @@
-import contextlib
 import os
-import secrets
 import shutil
 import zipfile
-from collections.abc import Iterator
 from pathlib import Path, PurePath
 from typing import Annotated, Any
 from urllib.parse import quote, urlsplit
 
 from litestar import Response, get, post
+from litestar.background_tasks import BackgroundTask
 from litestar.connection import ASGIConnection
 from litestar.di import NamedDependency
 from litestar.enums import MediaType, RequestEncodingType
-from litestar.exceptions import HTTPException, PermissionDeniedException, ValidationException
+from litestar.exceptions import HTTPException, NotFoundException, PermissionDeniedException, ValidationException
 from litestar.handlers.base import BaseRouteHandler
-from litestar.openapi.datastructures import ResponseSpec
-from litestar.params import Body
-from litestar.response import Stream
+from litestar.params import Body, FromPath, QueryParameter
+from litestar.response import File
 from litestar.status_codes import (
     HTTP_201_CREATED,
     HTTP_409_CONFLICT,
@@ -118,52 +115,15 @@ def get_config(web_config: NamedDependency[WebConfig]) -> AppConfig:
     return AppConfig(local=web_config.local, max_upload_size=web_config.max_upload_size)
 
 
-def _form_part_header(name: str, content_type: str, filename: str | None = None) -> bytes:
-    disposition = f'form-data; name="{name}"'
-    if filename is not None:
-        # Escape the same characters as browsers do when they encode a form.
-        escaped = filename.replace('"', "%22").replace("\r", "%0D").replace("\n", "%0A")
-        disposition += f'; filename="{escaped}"'
-    return f"Content-Disposition: {disposition}\r\nContent-Type: {content_type}\r\n\r\n".encode()
-
-
-def _stream_fix_font_result(
-    cleanup: contextlib.ExitStack,
-    head: bytes,
-    dst_path: Path,
-    tail: bytes,
-) -> Iterator[bytes]:
-    """Stream the result from the disk, deleting the request directory when done or abandoned."""
-    with cleanup:
-        yield head
-        with dst_path.open("rb") as f:
-            while chunk := f.read(_COPY_CHUNK_SIZE):
-                yield chunk
-        yield tail
-
-
-@post(
-    "/api/fix-font",
-    status_code=200,
-    sync_to_thread=True,
-    responses={
-        200: ResponseSpec(
-            data_container=FixFontResult,
-            media_type=RequestEncodingType.MULTI_PART,
-            description="The fixed pptx file with its suggested name and the processing log.",
-            generate_examples=False,
-        )
-    },
-)
+@post("/api/fix-font", status_code=200, sync_to_thread=True)
 def fix_font(
     data: Annotated[FixFontForm, Body(media_type=RequestEncodingType.MULTI_PART)],
     web_config: NamedDependency[WebConfig],
     storage: NamedDependency[RequestStorage],
-) -> Stream:
+) -> FixFontResult:
     """Fix up the fonts of the uploaded pptx file with the given theme.
 
-    The result is a multipart/form-data body streamed from the disk, so that the server memory does
-    not grow with the file size.
+    The fixed file is kept on the server for a while, to be downloaded from the returned URL.
     """
     theme_info = decode_theme_json(data.theme)
     stem = PurePath(data.file.filename or "presentation").stem or "presentation"
@@ -177,8 +137,7 @@ def fix_font(
             status_code=HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail=f"The file is larger than the limit ({web_config.max_upload_size} bytes).",
         )
-    with contextlib.ExitStack() as stack:
-        req_dir = stack.enter_context(storage.request_dir())
+    with storage.request_dir() as req_dir:
         src_path = req_dir / "src.pptx"
         dst_path = req_dir / "dst.pptx"
         _reserve_storage(storage, req_dir, upload_size)
@@ -209,25 +168,29 @@ def fix_font(
                     detail=f"Failed to process the presentation: {message}",
                 ) from e
         filename = f"{stem}-fixed.pptx"
-        boundary = secrets.token_hex(16).encode()
-        head = b"".join([
-            b"--" + boundary + b"\r\n",
-            _form_part_header("filename", "text/plain; charset=utf-8"),
-            filename.encode(),
-            b"\r\n--" + boundary + b"\r\n",
-            _form_part_header("log", "text/plain; charset=utf-8"),
-            log.text.encode(),
-            b"\r\n--" + boundary + b"\r\n",
-            _form_part_header("file", PPTX_MEDIA_TYPE, filename),
-        ])
-        tail = b"\r\n--" + boundary + b"--\r\n"
-        content_length = len(head) + dst_path.stat().st_size + len(tail)
-        # The stream takes over the request directory, which stays reserved until it is sent.
-        stream = _stream_fix_font_result(stack.pop_all(), head, dst_path, tail)
-    return Stream(
-        stream,
-        media_type=f"multipart/form-data; boundary={boundary.decode()}",
-        headers={"Content-Length": str(content_length)},
+        download_id = storage.keep_for_download(req_dir, dst_path, filename)
+    return FixFontResult(filename=filename, log=log.text, download_url=f"/api/fix-font/{download_id}")
+
+
+@get("/api/fix-font/{download_id:str}", sync_to_thread=True, media_type=PPTX_MEDIA_TYPE)
+def download_fixed_font(
+    download_id: FromPath[str],
+    storage: NamedDependency[RequestStorage],
+    filename: Annotated[
+        str | None, QueryParameter(description="The download file name, instead of the suggested one.")
+    ] = None,
+) -> File:
+    """Download the fixed pptx file once, streamed from the disk."""
+    download = storage.claim_download(download_id)
+    if download is None:
+        raise NotFoundException("The download has expired or has already been done. Fix the fonts again.")
+    # Only the base name is meaningful as a download name.
+    name = (filename or "").replace("\\", "/").rsplit("/", 1)[-1] or download.filename
+    return File(
+        download.path,
+        filename=name,
+        media_type=PPTX_MEDIA_TYPE,
+        background=BackgroundTask(storage.remove_download, download),
     )
 
 
@@ -276,6 +239,7 @@ route_handlers = [
     list_monospace_fonts,
     get_config,
     fix_font,
+    download_fixed_font,
     font_theme,
     install_font_theme_handler,
 ]

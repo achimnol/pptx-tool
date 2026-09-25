@@ -38,6 +38,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/fix-font/{download_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** DownloadFixedFont */
+    get: operations['ApiFixFontDownloadIdDownloadFixedFont'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/font-theme': {
     parameters: {
       query?: never;
@@ -130,8 +147,8 @@ export interface components {
     };
     /** FixFontResult */
     FixFontResult: {
-      /** Format: binary */
-      file: string;
+      /** @description The one-time URL of the fixed pptx file, which expires if not downloaded in time. The filename query parameter overrides the suggested file name. */
+      downloadUrl: string;
       /** @description The suggested file name of the fixed pptx file. */
       filename: string;
       log: string;
@@ -219,13 +236,62 @@ export interface operations {
       };
     };
     responses: {
-      /** @description The fixed pptx file with its suggested name and the processing log. */
+      /** @description Request fulfilled, document follows */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          'multipart/form-data': components['schemas']['FixFontResult'];
+          'application/json': components['schemas']['FixFontResult'];
+        };
+      };
+      /** @description Bad request syntax or unsupported method */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            detail: string;
+            extra?:
+              | null
+              | {
+                  [key: string]: unknown;
+                }
+              | unknown[];
+            status_code: number;
+          };
+        };
+      };
+    };
+  };
+  ApiFixFontDownloadIdDownloadFixedFont: {
+    parameters: {
+      query?: {
+        /** @description The download file name, instead of the suggested one. */
+        filename?: string | null;
+      };
+      header?: never;
+      path: {
+        download_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description File Download */
+      200: {
+        headers: {
+          /** @description File size in bytes */
+          'content-length'?: string;
+          /** @description Entity tag */
+          etag?: string;
+          /** @description Last modified data-time in RFC 2822 format */
+          'last-modified'?: string;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/vnd.openxmlformats-officedocument.presentationml.presentation': string;
         };
       };
       /** @description Bad request syntax or unsupported method */

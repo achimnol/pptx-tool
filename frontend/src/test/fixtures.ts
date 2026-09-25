@@ -59,9 +59,6 @@ export function mockFetch(routes: MockRoute[]) {
     }
     const [route] = remaining.splice(index, 1);
     const status = route!.status ?? 200;
-    if (route!.body instanceof FormData) {
-      return new Response(route!.body, {status});
-    }
     if (route!.isBlob) {
       return new Response(route!.body as BodyInit, {
         status,

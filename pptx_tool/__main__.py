@@ -71,6 +71,7 @@ def do_serve(args: argparse.Namespace) -> None:
         max_upload_size=args.max_upload_mb * 1024 * 1024,
         tmp_dir=args.tmp_dir,
         tmp_quota=args.tmp_quota_mb * 1024 * 1024,
+        download_ttl=args.download_ttl,
         # Accept any Host header when serving on a public address, as the host names are unknown.
         allowed_hosts=loopback_host_headers(args.port) if is_loopback else (),
     )
@@ -167,6 +168,13 @@ def main() -> None:
         default=1024,
         help="The total size limit of --tmp-dir in MiB, at least twice --max-upload-mb. "
         "Any leftover files of earlier requests are deleted to make room. (default: %(default)s)",
+    )
+    parser_serve.add_argument(
+        "--download-ttl",
+        type=int,
+        default=300,
+        help="The seconds to keep each fixed pptx file for its download, "
+        "which is deleted if not downloaded in time. (default: %(default)s)",
     )
     parser_serve.set_defaults(func=do_serve)
 

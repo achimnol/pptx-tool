@@ -12,16 +12,9 @@ export async function fixFont(file: File, theme: ThemeData): Promise<FixFontResu
       form.append('theme', body.theme);
       return form;
     },
-    // The result is a multipart/form-data body, parsed by the browser below.
-    parseAs: 'stream',
   });
   if (data === undefined) throw toApiError(response, error);
-  const form = await response.formData();
-  return {
-    filename: String(form.get('filename')),
-    log: String(form.get('log')),
-    file: form.get('file') as File,
-  };
+  return data;
 }
 
 export async function downloadFontTheme(name: string, theme: ThemeData): Promise<Blob> {
