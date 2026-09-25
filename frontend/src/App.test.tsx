@@ -127,6 +127,16 @@ describe('App', () => {
     expect(screen.getByRole('button', {name: 'Fix fonts'})).toBeDisabled();
   });
 
+  it('shows the upload size limit', async () => {
+    renderApp();
+    await waitForEditor();
+    expect(
+      await screen.findByText('Drop a .pptx file here or choose one. The size limit is 1.0 MiB.'),
+    ).toBeInTheDocument();
+    await userEvent.upload(getFileInput('.pptx'), new File(['PK'], 'deck.pptx'));
+    expect(screen.getByText('deck.pptx (2 B). The size limit is 1.0 MiB.')).toBeInTheDocument();
+  });
+
   it('fixes the fonts of a presentation', async () => {
     const {requests} = renderApp([
       {

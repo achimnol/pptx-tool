@@ -63,6 +63,11 @@ export function FixFontsPanel({
   };
 
   const canRun = file !== null && isThemeValid && !isRunning;
+  const fileDescription = file
+    ? `${file.name} (${formatBytes(file.size)}).`
+    : 'Drop a .pptx file here or choose one.';
+  const sizeLimitDescription =
+    maxUploadSize === undefined ? '' : ` The size limit is ${formatBytes(maxUploadSize)}.`;
   return (
     <VStack gap={4}>
       <FileInput
@@ -72,11 +77,7 @@ export function FixFontsPanel({
         maxSize={maxUploadSize}
         value={file}
         onChange={handleFileChange}
-        description={
-          file
-            ? `${file.name} (${formatBytes(file.size)})`
-            : 'Drop a .pptx file here or choose one.'
-        }
+        description={fileDescription + sizeLimitDescription}
       />
       <TextInput
         label="Output file name"
