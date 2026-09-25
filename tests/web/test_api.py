@@ -1,4 +1,3 @@
-import base64
 import copy
 import io
 import json
@@ -45,6 +44,13 @@ def _post_fix_font(
     )
 
 
+def _download_fix_font_result(client: TestClient[Litestar], resp: Any) -> bytes:
+    assert resp.status_code == 200, resp.text
+    download = client.get(resp.json()["downloadUrl"])
+    assert download.status_code == 200, download.text
+    return download.content
+
+
 def test_list_themes(client: TestClient[Litestar]) -> None:
     resp = client.get("/api/themes")
     assert resp.status_code == 200
@@ -83,7 +89,12 @@ def test_fix_font(client: TestClient[Litestar], sample_pptx: Path) -> None:
     assert result["filename"] == "sample-fixed.pptx"
     assert "Current font scheme: (name='Office')" in result["log"]
     assert "slide1.xml: normal element" in result["log"]
-    with zipfile.ZipFile(io.BytesIO(base64.b64decode(result["contentBase64"]))) as zf:
+    download = client.get(result["downloadUrl"])
+    assert download.status_code == 200, download.text
+    assert download.headers["content-type"] == PPTX_MEDIA_TYPE
+    assert download.headers["content-disposition"] == 'attachment; filename="sample-fixed.pptx"'
+    assert int(download.headers["content-length"]) == len(download.content)
+    with zipfile.ZipFile(io.BytesIO(download.content)) as zf:
         theme_xml = zf.read("ppt/theme/theme1.xml").decode()
         slide_xml = zf.read("ppt/slides/slide1.xml").decode()
     assert 'typeface="Major Sans"' in theme_xml
@@ -94,11 +105,11 @@ def test_fix_font(client: TestClient[Litestar], sample_pptx: Path) -> None:
 def test_fix_font_preserve_mono(client: TestClient[Litestar], sample_pptx: Path) -> None:
     theme = copy.deepcopy(THEME)
     theme["options"]["preserveMono"] = True
-    result = _post_fix_font(client, sample_pptx.read_bytes(), theme).json()
-    with zipfile.ZipFile(io.BytesIO(base64.b64decode(result["contentBase64"]))) as zf:
+    resp = _post_fix_font(client, sample_pptx.read_bytes(), theme)
+    with zipfile.ZipFile(io.BytesIO(_download_fix_font_result(client, resp))) as zf:
         slide_xml = zf.read("ppt/slides/slide1.xml").decode()
     assert 'typeface="Consolas"' in slide_xml
-    assert "Preserving the existing monospace fonts as-is." in result["log"]
+    assert "Preserving the existing monospace fonts as-is." in resp.json()["log"]
 
 
 def test_fix_font_invalid_theme_value(client: TestClient[Litestar], sample_pptx: Path) -> None:
@@ -151,7 +162,64 @@ def test_fix_font_too_large(make_client: MakeClient, sample_pptx: Path) -> None:
 def test_fix_font_cleans_request_dir(client: TestClient[Litestar], sample_pptx: Path, tmp_dir: Path) -> None:
     resp = _post_fix_font(client, sample_pptx.read_bytes())
     assert resp.status_code == 200, resp.text
-    assert tmp_dir.is_dir()
+    # Only the fixed file is kept until it is downloaded.
+    [req_dir] = tmp_dir.iterdir()
+    assert [p.name for p in req_dir.iterdir()] == ["dst.pptx"]
+    _download_fix_font_result(client, resp)
+    assert list(tmp_dir.iterdir()) == []
+
+
+def test_fix_font_cleans_failed_request_dir(client: TestClient[Litestar], tmp_dir: Path) -> None:
+    resp = _post_fix_font(client, b"not a zip file")
+    assert resp.status_code == 400
+    assert list(tmp_dir.iterdir()) == []
+
+
+def test_fix_font_non_ascii_filename(client: TestClient[Litestar], sample_pptx: Path) -> None:
+    resp = _post_fix_font(client, sample_pptx.read_bytes(), filename='발표 "초안".pptx')
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["filename"] == '발표 "초안"-fixed.pptx'
+    download = client.get(resp.json()["downloadUrl"])
+    assert download.headers["content-disposition"] == (
+        "attachment; filename*=utf-8''%EB%B0%9C%ED%91%9C%20%22%EC%B4%88%EC%95%88%22-fixed.pptx"
+    )
+
+
+@pytest.mark.parametrize(
+    ("filename", "expected"),
+    [
+        ("custom.pptx", 'attachment; filename="custom.pptx"'),
+        ("../dir\\evil.pptx", 'attachment; filename="evil.pptx"'),
+        ("a\r\nb.pptx", "attachment; filename*=utf-8''a%0D%0Ab.pptx"),
+        ("dir/", 'attachment; filename="sample-fixed.pptx"'),
+    ],
+)
+def test_fix_font_download_filename(
+    client: TestClient[Litestar], sample_pptx: Path, filename: str, expected: str
+) -> None:
+    resp = _post_fix_font(client, sample_pptx.read_bytes())
+    download = client.get(resp.json()["downloadUrl"], params={"filename": filename})
+    assert download.status_code == 200, download.text
+    assert download.headers["content-disposition"] == expected
+
+
+def test_fix_font_download_once(client: TestClient[Litestar], sample_pptx: Path) -> None:
+    resp = _post_fix_font(client, sample_pptx.read_bytes())
+    _download_fix_font_result(client, resp)
+    again = client.get(resp.json()["downloadUrl"])
+    assert again.status_code == 404
+    assert "Fix the fonts again" in again.json()["detail"]
+
+
+def test_fix_font_download_unknown(client: TestClient[Litestar]) -> None:
+    assert client.get("/api/fix-font/unknown").status_code == 404
+
+
+def test_fix_font_download_expired(make_client: MakeClient, sample_pptx: Path, tmp_dir: Path) -> None:
+    client = make_client(download_ttl=0)
+    resp = _post_fix_font(client, sample_pptx.read_bytes())
+    assert resp.status_code == 200, resp.text
+    assert client.get(resp.json()["downloadUrl"]).status_code == 404
     assert list(tmp_dir.iterdir()) == []
 
 

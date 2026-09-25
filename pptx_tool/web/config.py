@@ -23,6 +23,8 @@ class WebConfig:
     """The directory holding the per-request working directories for the uploaded and intermediate files."""
     tmp_quota: int = 1024**3
     """The total size limit of tmp_dir in bytes; the oldest finished requests are deleted to make room."""
+    download_ttl: float = 300.0
+    """The seconds to keep a fixed pptx file for its download, which is deleted if not downloaded in time."""
     archive_limits: ArchiveLimits = dataclasses.field(default_factory=ArchiveLimits)
     static_dir: Path | None = STATIC_DIR
     """The directory containing the built frontend, or None to disable serving it."""

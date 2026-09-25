@@ -10,10 +10,8 @@ import {fixFont} from '../api/actions';
 import {ApiError, type FieldError} from '../api/errors';
 import type {ThemeData} from '../api/types';
 import {ProcessLog} from '../components/ProcessLog';
-import {base64ToBlob, downloadBlob} from '../utils/download';
+import {downloadUrl} from '../utils/download';
 import {defaultOutputName, ensurePptxSuffix, formatBytes} from '../utils/filenames';
-
-const PPTX_MEDIA_TYPE = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
 
 export interface FixFontsPanelProps {
   theme: ThemeData;
@@ -52,7 +50,8 @@ export function FixFontsPanel({
     try {
       const result = await fixFont(file, theme);
       const filename = ensurePptxSuffix(outputName.trim() || result.filename);
-      downloadBlob(base64ToBlob(result.contentBase64, PPTX_MEDIA_TYPE), filename);
+      // The browser streams the file to the disk by itself, instead of holding it in the memory.
+      downloadUrl(`${result.downloadUrl}?filename=${encodeURIComponent(filename)}`, filename);
       setLog(result.log);
       toast({body: `Fixed the fonts and saved ${filename}.`});
     } catch (e) {

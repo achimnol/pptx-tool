@@ -1,4 +1,3 @@
-import base64
 import os
 import shutil
 import zipfile
@@ -7,12 +6,14 @@ from typing import Annotated, Any
 from urllib.parse import quote, urlsplit
 
 from litestar import Response, get, post
+from litestar.background_tasks import BackgroundTask
 from litestar.connection import ASGIConnection
 from litestar.di import NamedDependency
 from litestar.enums import MediaType, RequestEncodingType
-from litestar.exceptions import HTTPException, PermissionDeniedException, ValidationException
+from litestar.exceptions import HTTPException, NotFoundException, PermissionDeniedException, ValidationException
 from litestar.handlers.base import BaseRouteHandler
-from litestar.params import Body
+from litestar.params import Body, FromPath, QueryParameter
+from litestar.response import File
 from litestar.status_codes import (
     HTTP_201_CREATED,
     HTTP_409_CONFLICT,
@@ -51,6 +52,7 @@ from .models import (
 from .storage import RequestStorage, RequestTooLargeError, StorageFullError
 
 _COPY_CHUNK_SIZE = 1024 * 1024
+PPTX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 
 
 def same_origin_guard(connection: ASGIConnection[Any, Any, Any, Any], _: BaseRouteHandler) -> None:
@@ -119,7 +121,10 @@ def fix_font(
     web_config: NamedDependency[WebConfig],
     storage: NamedDependency[RequestStorage],
 ) -> FixFontResult:
-    """Fix up the fonts of the uploaded pptx file with the given theme."""
+    """Fix up the fonts of the uploaded pptx file with the given theme.
+
+    The fixed file is kept on the server for a while, to be downloaded from the returned URL.
+    """
     theme_info = decode_theme_json(data.theme)
     stem = PurePath(data.file.filename or "presentation").stem or "presentation"
     # The upload is spooled to a seekable temporary file, so its size is known before copying it.
@@ -162,11 +167,30 @@ def fix_font(
                     status_code=HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=f"Failed to process the presentation: {message}",
                 ) from e
-        content = dst_path.read_bytes()
-    return FixFontResult(
-        filename=f"{stem}-fixed.pptx",
-        log=log.text,
-        content_base64=base64.b64encode(content).decode("ascii"),
+        filename = f"{stem}-fixed.pptx"
+        download_id = storage.keep_for_download(req_dir, dst_path, filename)
+    return FixFontResult(filename=filename, log=log.text, download_url=f"/api/fix-font/{download_id}")
+
+
+@get("/api/fix-font/{download_id:str}", sync_to_thread=True, media_type=PPTX_MEDIA_TYPE)
+def download_fixed_font(
+    download_id: FromPath[str],
+    storage: NamedDependency[RequestStorage],
+    filename: Annotated[
+        str | None, QueryParameter(description="The download file name, instead of the suggested one.")
+    ] = None,
+) -> File:
+    """Download the fixed pptx file once, streamed from the disk."""
+    download = storage.claim_download(download_id)
+    if download is None:
+        raise NotFoundException("The download has expired or has already been done. Fix the fonts again.")
+    # Only the base name is meaningful as a download name.
+    name = (filename or "").replace("\\", "/").rsplit("/", 1)[-1] or download.filename
+    return File(
+        download.path,
+        filename=name,
+        media_type=PPTX_MEDIA_TYPE,
+        background=BackgroundTask(storage.remove_download, download),
     )
 
 
@@ -215,6 +239,7 @@ route_handlers = [
     list_monospace_fonts,
     get_config,
     fix_font,
+    download_fixed_font,
     font_theme,
     install_font_theme_handler,
 ]

@@ -90,7 +90,8 @@ interface by default; use `--host` and `--port` to change it, and `--max-upload-
 upload size limit (200 MiB by default).
 The uploaded and intermediate files are kept in per-request subdirectories of `/tmp/pptx-tool`
 (`--tmp-dir`), limited to 1 GiB in total (`--tmp-quota-mb`); each request is deleted when done, and
-any leftovers of earlier requests are deleted to make room.  Give each server process its own
+any leftovers of earlier requests are deleted to make room.  The fixed pptx file is kept until the
+browser downloads it, or deleted after 5 minutes (`--download-ttl`) if it is not downloaded.  Give each server process its own
 directory.  Note that the server framework spools each upload in the system temporary directory
 while the request is processed, so the peak disk usage is the quota plus the concurrent uploads.
 When listening on a loopback address, the server checks the `Host` header against DNS rebinding,

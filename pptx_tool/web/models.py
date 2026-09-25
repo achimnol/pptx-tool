@@ -51,9 +51,17 @@ class FixFontForm(msgspec.Struct):
 
 
 class FixFontResult(msgspec.Struct, rename="camel"):
-    filename: str
+    filename: Annotated[str, msgspec.Meta(description="The suggested file name of the fixed pptx file.")]
     log: str
-    content_base64: str
+    download_url: Annotated[
+        str,
+        msgspec.Meta(
+            description=(
+                "The one-time URL of the fixed pptx file, which expires if not downloaded in time."
+                " The filename query parameter overrides the suggested file name."
+            )
+        ),
+    ]
 
 
 class FontThemeRequest(msgspec.Struct):

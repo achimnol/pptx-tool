@@ -1,5 +1,9 @@
+import asyncio
+import contextlib
 import importlib.metadata
+from collections.abc import AsyncIterator
 
+import anyio.to_thread
 from litestar import Litestar, MediaType, Router, get
 from litestar.config.allowed_hosts import AllowedHostsConfig
 from litestar.di import Provide
@@ -39,9 +43,26 @@ def _get_version() -> str:
         return "0.0.0"
 
 
+async def _expire_downloads_periodically(storage: RequestStorage) -> None:
+    interval = min(max(storage.download_ttl / 2, 1.0), 60.0)
+    while True:
+        await asyncio.sleep(interval)
+        await anyio.to_thread.run_sync(storage.expire_downloads)
+
+
 def create_app(web_config: WebConfig | None = None) -> Litestar:
     config = web_config or WebConfig()
-    storage = RequestStorage(config.tmp_dir, config.tmp_quota)
+    storage = RequestStorage(config.tmp_dir, config.tmp_quota, config.download_ttl)
+
+    @contextlib.asynccontextmanager
+    async def expire_downloads(_: Litestar) -> AsyncIterator[None]:
+        task = asyncio.create_task(_expire_downloads_periodically(storage))
+        try:
+            yield
+        finally:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
 
     def provide_web_config() -> WebConfig:
         return config
@@ -56,6 +77,7 @@ def create_app(web_config: WebConfig | None = None) -> Litestar:
             "storage": Provide(provide_storage, use_cache=True, sync_to_thread=False),
         },
         on_startup=[storage.cleanup_stale],
+        lifespan=[expire_downloads],
         # Leave some room for the multipart encoding overhead around the uploaded file.
         request_max_body_size=config.max_upload_size + 1024 * 1024,
         allowed_hosts=AllowedHostsConfig(allowed_hosts=list(config.allowed_hosts)) if config.allowed_hosts else None,

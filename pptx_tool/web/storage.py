@@ -1,9 +1,12 @@
 import contextlib
+import dataclasses
 import os
+import secrets
 import shutil
 import stat
 import tempfile
 import threading
+import time
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -38,6 +41,16 @@ def _tree_size(path: Path) -> int:
     return total
 
 
+@dataclasses.dataclass(frozen=True)
+class PendingDownload:
+    """A result file kept after its request is done, until the client downloads it."""
+
+    request_dir: Path
+    path: Path
+    filename: str
+    expires_at: float
+
+
 class RequestStorage:
     """A fixed directory holding one working directory per request, bounded by a total size quota.
 
@@ -45,14 +58,20 @@ class RequestStorage:
     the quota together. When a reservation would exceed the quota, the leftovers of the finished
     requests are deleted first, oldest first. The directories of the requests in progress are never
     deleted. Each server process needs its own root, as the accounting is done only within a process.
+
+    A request may keep its result file for a later download, which stays reserved like a request in
+    progress until it is claimed or download_ttl seconds pass.
     """
 
-    def __init__(self, root: Path, quota: int) -> None:
+    def __init__(self, root: Path, quota: int, download_ttl: float = 300.0) -> None:
         self.root = root
         self.quota = quota
+        self.download_ttl = download_ttl
         self._lock = threading.Lock()
         self._reserved: dict[Path, int] = {}
-        """The reserved footprint of each request in progress, keyed by its working directory."""
+        """The reserved footprint of each request in progress or pending download, keyed by its working directory."""
+        self._downloads: dict[str, PendingDownload] = {}
+        """The pending downloads keyed by their unguessable ids."""
 
     def _ensure_root(self) -> None:
         try:
@@ -87,9 +106,72 @@ class RequestStorage:
         try:
             yield path
         finally:
-            shutil.rmtree(path, ignore_errors=True)
             with self._lock:
-                del self._reserved[path]
+                kept = any(d.request_dir == path for d in self._downloads.values())
+            if not kept:
+                shutil.rmtree(path, ignore_errors=True)
+                with self._lock:
+                    del self._reserved[path]
+
+    def keep_for_download(self, request_dir: Path, path: Path, filename: str) -> str:
+        """Keep a result file in the request directory after the request is done, returning its download id.
+
+        The other entries of the directory are deleted, and the reservation shrinks to the file size.
+        """
+        for entry in request_dir.iterdir():
+            if entry != path:
+                self._remove(entry)
+        size = path.stat().st_size
+        download_id = secrets.token_urlsafe(24)
+        with self._lock:
+            self._reserved[request_dir] = size
+            self._downloads[download_id] = PendingDownload(request_dir, path, filename, time.time() + self.download_ttl)
+        return download_id
+
+    def claim_download(self, download_id: str) -> PendingDownload | None:
+        """Take a pending download for sending it, which can be done only once and before it expires.
+
+        The directory is no longer reserved, so the caller should remove it with remove_download() after
+        sending it. Otherwise it is removed as a leftover by eviction, expire_downloads(), or the next startup.
+        """
+        with self._lock:
+            download = self._downloads.pop(download_id, None)
+            if download is None:
+                return None
+            del self._reserved[download.request_dir]
+        if download.expires_at <= time.time():
+            self._remove(download.request_dir)
+            return None
+        return download
+
+    def remove_download(self, download: PendingDownload) -> None:
+        self._remove(download.request_dir)
+
+    def expire_downloads(self, now: float | None = None) -> None:
+        """Delete the pending downloads that nobody claimed in time, and the leftovers older than download_ttl.
+
+        The leftovers are mostly the claimed downloads whose removal after sending was skipped.
+        """
+        now = time.time() if now is None else now
+        with self._lock:
+            expired = [(i, d) for i, d in self._downloads.items() if d.expires_at <= now]
+            for download_id, download in expired:
+                del self._downloads[download_id]
+                del self._reserved[download.request_dir]
+                self._remove(download.request_dir)
+            try:
+                paths = list(self.root.iterdir())
+            except OSError:
+                return
+            for path in paths:
+                if path in self._reserved:
+                    continue
+                try:
+                    mtime = path.lstat().st_mtime
+                except OSError:
+                    continue
+                if mtime + self.download_ttl <= now:
+                    self._remove(path)
 
     def reserve(self, request_dir: Path, needed: int) -> None:
         """Reserve the total footprint of a request, evicting the leftovers of finished requests if needed.

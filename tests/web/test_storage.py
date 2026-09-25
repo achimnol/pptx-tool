@@ -1,6 +1,7 @@
 import os
 import stat
 import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -133,3 +134,55 @@ def test_root_is_made_private(tmp_path: Path) -> None:
     root.mkdir(mode=0o755)
     RequestStorage(root, quota=1000).cleanup_stale()
     assert stat.S_IMODE(root.stat().st_mode) == 0o700
+
+
+def test_keep_for_download(tmp_path: Path) -> None:
+    storage = RequestStorage(tmp_path, quota=1000, download_ttl=60)
+    with storage.request_dir() as req_dir:
+        (req_dir / "work").mkdir()
+        (req_dir / "work" / "data").write_bytes(b"x" * 500)
+        (req_dir / "dst.pptx").write_bytes(b"x" * 100)
+        download_id = storage.keep_for_download(req_dir, req_dir / "dst.pptx", "out.pptx")
+    assert [p.name for p in req_dir.iterdir()] == ["dst.pptx"]
+    # The pending download stays reserved, so it is never evicted.
+    with storage.request_dir() as other_dir, pytest.raises(StorageFullError):
+        storage.reserve(other_dir, 901)
+    download = storage.claim_download(download_id)
+    assert download is not None
+    assert download.path == req_dir / "dst.pptx"
+    assert download.filename == "out.pptx"
+    assert storage.claim_download(download_id) is None
+    storage.remove_download(download)
+    assert not req_dir.exists()
+
+
+def test_claim_expired_download(tmp_path: Path) -> None:
+    storage = RequestStorage(tmp_path, quota=1000, download_ttl=0)
+    with storage.request_dir() as req_dir:
+        (req_dir / "dst.pptx").write_bytes(b"x")
+        download_id = storage.keep_for_download(req_dir, req_dir / "dst.pptx", "out.pptx")
+    assert storage.claim_download(download_id) is None
+    assert not req_dir.exists()
+
+
+def test_expire_downloads(tmp_path: Path) -> None:
+    storage = RequestStorage(tmp_path, quota=1000, download_ttl=60)
+    with storage.request_dir() as req_dir:
+        (req_dir / "dst.pptx").write_bytes(b"x")
+        download_id = storage.keep_for_download(req_dir, req_dir / "dst.pptx", "out.pptx")
+    # A claimed download whose removal after sending was skipped.
+    with storage.request_dir() as claimed_dir:
+        (claimed_dir / "dst.pptx").write_bytes(b"x")
+        claimed_id = storage.keep_for_download(claimed_dir, claimed_dir / "dst.pptx", "out.pptx")
+    assert storage.claim_download(claimed_id) is not None
+    now = time.time()
+    with storage.request_dir() as in_progress:
+        storage.expire_downloads(now + 30)
+        assert req_dir.exists() and claimed_dir.exists()
+        storage.expire_downloads(now + 61)
+        assert not req_dir.exists() and not claimed_dir.exists()
+        assert in_progress.exists()
+    assert storage.claim_download(download_id) is None
+    # The expired download no longer holds its reservation.
+    with storage.request_dir() as new_dir:
+        storage.reserve(new_dir, 1000)

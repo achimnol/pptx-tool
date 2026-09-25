@@ -58,10 +58,12 @@
       },
       "FixFontResult": {
         "properties": {
-          "contentBase64": {
+          "downloadUrl": {
+            "description": "The one-time URL of the fixed pptx file, which expires if not downloaded in time. The filename query parameter overrides the suggested file name.",
             "type": "string"
           },
           "filename": {
+            "description": "The suggested file name of the fixed pptx file.",
             "type": "string"
           },
           "log": {
@@ -69,7 +71,7 @@
           }
         },
         "required": [
-          "contentBase64",
+          "downloadUrl",
           "filename",
           "log"
         ],
@@ -305,6 +307,122 @@
           }
         },
         "summary": "FixFont"
+      }
+    },
+    "/api/fix-font/{download_id}": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiFixFontDownloadIdDownloadFixedFont",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "download_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "The download file name, instead of the suggested one.",
+            "in": "query",
+            "name": "filename",
+            "required": false,
+            "schema": {
+              "description": "The download file name, instead of the suggested one.",
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/vnd.openxmlformats-officedocument.presentationml.presentation": {
+                "schema": {
+                  "contentMediaType": "application/octet-stream",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "File Download",
+            "headers": {
+              "content-length": {
+                "deprecated": false,
+                "description": "File size in bytes",
+                "required": false,
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "etag": {
+                "deprecated": false,
+                "description": "Entity tag",
+                "required": false,
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "last-modified": {
+                "deprecated": false,
+                "description": "Last modified data-time in RFC 2822 format",
+                "required": false,
+                "schema": {
+                  "format": "date-time",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "DownloadFixedFont"
       }
     },
     "/api/font-theme": {
