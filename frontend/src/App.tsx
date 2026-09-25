@@ -14,6 +14,7 @@ import type {BundledThemeInfo} from './api/types';
 import {FixFontsPanel} from './fix-fonts/FixFontsPanel';
 import {FontThemePanel} from './font-theme/FontThemePanel';
 import {useAppConfig, useBundledThemes, useMonospaceFonts} from './hooks/resources';
+import {usePersistentState} from './hooks/usePersistentState';
 import {ThemeEditor} from './theme-editor/ThemeEditor';
 import {
   themeEditorReducer,
@@ -21,16 +22,25 @@ import {
   type ThemeEditorState,
 } from './theme-editor/themeState';
 import {validateTheme} from './theme-editor/validateTheme';
+import {loadStored, saveStored} from './utils/storage';
 
 type TaskTab = 'fix-fonts' | 'font-theme';
 
 const DEFAULT_PRESET_ID = 'pretendard';
+const EDITOR_STATE_KEY = 'themeEditor';
+
+function parseTab(value: unknown): TaskTab | undefined {
+  return value === 'fix-fonts' || value === 'font-theme' ? value : undefined;
+}
+
+type EditorAction = ThemeEditorAction | {type: 'restore'; state: ThemeEditorState};
 
 // The editor state is empty until the bundled themes are loaded.
 function editorReducer(
   state: ThemeEditorState | null,
-  action: ThemeEditorAction,
+  action: EditorAction,
 ): ThemeEditorState | null {
+  if (action.type === 'restore') return action.state;
   if (state === null) {
     return action.type === 'selectPreset' || action.type === 'import'
       ? themeEditorReducer(
@@ -46,20 +56,40 @@ function initialPreset(presets: readonly BundledThemeInfo[]): BundledThemeInfo |
   return presets.find((p) => p.id === DEFAULT_PRESET_ID) ?? presets[0];
 }
 
+/** The editor state of the previous visit, if it holds a valid theme. */
+function loadEditorState(presets: readonly BundledThemeInfo[]): ThemeEditorState | undefined {
+  const stored = loadStored(EDITOR_STATE_KEY);
+  if (typeof stored !== 'object' || stored === null) return undefined;
+  const {presetId, theme} = stored as Record<string, unknown>;
+  const validation = validateTheme(theme);
+  if (!validation.ok) return undefined;
+  // A preset that the server no longer bundles leaves the theme as an unnamed one.
+  const isKnownPreset = typeof presetId === 'string' && presets.some((p) => p.id === presetId);
+  return {presetId: isKnownPreset ? presetId : null, theme: validation.theme};
+}
+
 export function App() {
   const config = useAppConfig();
   const presets = useBundledThemes();
   const monospaceFonts = useMonospaceFonts();
-  const [tab, setTab] = useState<TaskTab>('fix-fonts');
+  const [tab, setTab] = usePersistentState<TaskTab>('tab', 'fix-fonts', parseTab);
   const [editorState, dispatch] = useReducer(editorReducer, null);
   const [serverFieldErrors, setServerFieldErrors] = useState<FieldError[]>([]);
 
   useEffect(() => {
-    const preset = presets.data && initialPreset(presets.data);
-    if (editorState === null && preset) {
+    if (editorState !== null || !presets.data) return;
+    const stored = loadEditorState(presets.data);
+    const preset = initialPreset(presets.data);
+    if (stored) {
+      dispatch({type: 'restore', state: stored});
+    } else if (preset) {
       dispatch({type: 'selectPreset', preset});
     }
   }, [editorState, presets.data]);
+
+  useEffect(() => {
+    if (editorState !== null) saveStored(EDITOR_STATE_KEY, editorState);
+  }, [editorState]);
 
   const validation = useMemo(
     () => (editorState ? validateTheme(editorState.theme) : undefined),
