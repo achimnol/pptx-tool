@@ -31,6 +31,14 @@ The bundled themes, with the display names shown in the web UI (major / minor fo
 - `pretendard` — Pretendard
 - `snu-appendard` — SNU Appendard
 
+The typefaces are replaced with references to the theme fonts (such as `+mn-lt`), except those
+with a weight suffix such as "Black", "SemiBold" or "Light" or a slope suffix such as "Italic":
+since a theme font reference cannot carry them, they are replaced with the theme font name followed
+by the same suffixes, such as "Pretendard Black" or "Pretendard Bold Italic".  This also applies to
+the monospace and symbol fonts and to the theme's `bodyFirstLevelStyle`, which is only applied to
+the first-level body text without an explicit weight.
+Note that the target font family must provide the variant for it to be rendered.
+
 By default, the text objects using a known monospace font (see `known_monospace_fonts`
 in `pptx_tool/fix.py`) have their latin/hangul typefaces replaced with the theme's `monoFont`,
 while their symbol typeface is still replaced with the theme's symbol font and their
@@ -58,8 +66,8 @@ whole element is left untouched, including its symbol typeface and script-specif
 This is intended so that a code block with Korean comments does not have only its latin part
 converted.  Bullet fonts using a monospace font are preserved likewise.
 
-The matching is an exact, case-insensitive lookup of the known font list, so it does not cover
-the objects whose typeface carries a weight suffix such as "JetBrains Mono ExtraBold".
+The matching is a case-insensitive lookup of the known font list after stripping the weight and
+slope suffixes, so "JetBrains Mono ExtraBold Italic" is also recognized as a monospace font.
 Since the unit is a single run, an empty line of a code block still gets converted if
 PowerPoint has stamped a non-monospace typeface on its `endParaRPr`.
 
