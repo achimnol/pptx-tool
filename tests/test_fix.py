@@ -43,6 +43,9 @@ def _parse_slide(body: str) -> etree._ElementTree:
         ("PragmataPro", True),
         ("JetBrains Mono ExtraBold", True),
         ("Sarasa Term K Light", True),
+        ("Consolas Regular", True),
+        ("Cascadia Code Semi-Light", True),
+        ("jetbrains mono extrabold", True),
         ("Pretendard", False),
         ("Pretendard Bold", False),
         ("", False),
@@ -87,6 +90,8 @@ def test_split_weight(typeface: str | None, expected: tuple[str, str | None]) ->
         ('<a:rPr><a:latin typeface="Pretendard"/><a:ea typeface="맑은 고딕"/></a:rPr>', False),
         ('<a:rPr><a:latin typeface="Pretendard"/><a:ea typeface="NanumGothicCoding"/></a:rPr>', True),
         ('<a:rPr><a:cs typeface="Menlo"/></a:rPr>', True),
+        ('<a:rPr><a:latin typeface="Pretendard"/><a:ea typeface="D2Coding Bold"/></a:rPr>', False),
+        ('<a:rPr><a:latin typeface="Pretendard Bold"/><a:ea typeface="Sarasa Term K Bold"/></a:rPr>', True),
         ('<a:rPr><a:sym typeface="SF Mono"/></a:rPr>', True),
         ('<a:rPr><a:font script="Hang" typeface="Hack"/></a:rPr>', True),
         ('<a:rPr><a:latin typeface="Pretendard"/><a:ea typeface="Pretendard"/></a:rPr>', False),
@@ -256,13 +261,14 @@ def test_first_level_bullet_style(
 @pytest.mark.parametrize(
     "preserve_mono,expected",
     [
-        (False, ["MIN-SYM", "MIN-SYM", "MIN-SYM Bold", "MIN-SYM"]),
-        (True, ["Consolas", "MIN-SYM", "MIN-SYM Bold", "MIN-SYM"]),
+        (False, ["MIN-SYM", "MIN-SYM Bold", "MIN-SYM", "MIN-SYM Bold", "MIN-SYM"]),
+        (True, ["Consolas", "Consolas Bold", "MIN-SYM", "MIN-SYM Bold", "MIN-SYM"]),
     ],
 )
 def test_normalize_slide_font_bullet_fonts(make_theme: MakeTheme, preserve_mono: bool, expected: list[str]) -> None:
     root_elem = _parse_slide(
         '<a:pPr><a:buFont typeface="Consolas"/></a:pPr>'
+        '<a:pPr><a:buFont typeface="Consolas Bold"/></a:pPr>'
         '<a:pPr><a:buFont typeface="Wingdings"/></a:pPr>'
         '<a:pPr><a:buFont typeface="Arial Bold"/></a:pPr>'
         '<a:pPr><a:buFont charset="2"/></a:pPr>'  # no typeface: must not raise
