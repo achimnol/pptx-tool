@@ -9,6 +9,7 @@ from pptx_tool.fix import (
     _has_monospace_font,
     _match_monospace_font,
     _normalize_slide_font,
+    _split_weight,
     _update_first_level_bullet_style,
     _update_paragraph_style,
     fix_theme_font,
@@ -40,13 +41,43 @@ def _parse_slide(body: str) -> etree._ElementTree:
         ("Sarasa Term K", True),
         ("Victor Mono", True),
         ("PragmataPro", True),
+        ("JetBrains Mono ExtraBold", True),
+        ("Sarasa Term K Light", True),
         ("Pretendard", False),
+        ("Pretendard Bold", False),
         ("", False),
         (None, False),
     ],
 )
 def test_match_monospace_font(typeface: str | None, expected: bool) -> None:
     assert _match_monospace_font(typeface) is expected
+
+
+@pytest.mark.parametrize(
+    "typeface,expected",
+    [
+        ("Pretendard", ("Pretendard", None)),
+        ("Pretendard Black", ("Pretendard", "Black")),
+        ("Pretendard ExtraBold", ("Pretendard", "ExtraBold")),
+        ("Pretendard SemiBold", ("Pretendard", "SemiBold")),
+        ("Segoe UI Semibold", ("Segoe UI", "SemiBold")),
+        ("Segoe UI Semi Bold", ("Segoe UI", "SemiBold")),
+        ("Noto Sans KR Extra-Light", ("Noto Sans KR", "ExtraLight")),
+        ("나눔스퀘어 ExtraBold", ("나눔스퀘어", "ExtraBold")),
+        ("Paperlogy 7 Bold", ("Paperlogy 7", "Bold")),
+        ("Arial Black", ("Arial", "Black")),
+        ("Pretendard Medium", ("Pretendard", "Medium")),
+        ("Pretendard Thin", ("Pretendard", "Thin")),
+        ("Pretendard Regular", ("Pretendard", None)),
+        ("Franklin Gothic Book", ("Franklin Gothic Book", None)),
+        ("Boldface", ("Boldface", None)),
+        ("+mn-lt", ("+mn-lt", None)),
+        ("", ("", None)),
+        (None, ("", None)),
+    ],
+)
+def test_split_weight(typeface: str | None, expected: tuple[str, str | None]) -> None:
+    assert _split_weight(typeface) == expected
 
 
 @pytest.mark.parametrize(
@@ -152,8 +183,55 @@ def test_paragraph_style_still_converts_non_monospace_when_preserving(
 
 
 @pytest.mark.parametrize(
+    "scheme_prefix,expected",
+    [
+        ("mn", ["MIN-LT Black", "MIN-EA Light", "+mn-cs", "MIN-SYM Medium", "MONO-LT Bold", "+mn-lt"]),
+        ("mj", ["MAJ-LT Black", "MAJ-EA Light", "+mj-cs", "MAJ-SYM Medium", "MONO-LT Bold", "+mj-lt"]),
+    ],
+)
+def test_paragraph_style_preserves_weight_variants(
+    parse_fragment: ParseFragment, make_theme: MakeTheme, scheme_prefix: str, expected: list[str]
+) -> None:
+    """A weight variant must survive the replacement, naming the theme font explicitly instead of referencing it."""
+    root_elem = parse_fragment(
+        "<a:p>"
+        '<a:rPr><a:latin typeface="Arial Black"/><a:ea typeface="나눔스퀘어 Light"/>'
+        '<a:cs typeface="Pretendard Regular"/><a:sym typeface="Pretendard Medium"/></a:rPr>'
+        '<a:rPr><a:latin typeface="JetBrains Mono Bold"/></a:rPr>'
+        '<a:rPr><a:latin typeface="Pretendard"/></a:rPr>'
+        "</a:p>"
+    )
+    for prop_elem in root_elem:
+        _update_paragraph_style(prop_elem, make_theme(), scheme_prefix=scheme_prefix)
+    assert [elem.get("typeface") for elem in root_elem.iter() if elem.get("typeface")] == expected
+
+
+def test_paragraph_style_replaces_weight_of_weighted_theme_font(
+    parse_fragment: ParseFragment, make_theme: MakeTheme
+) -> None:
+    """A theme font that already has a weight suffix must have it replaced, not doubled."""
+    prop_elem = parse_fragment('<a:rPr><a:latin typeface="Arial Black"/><a:ea typeface="굴림"/></a:rPr>')
+    theme_info = make_theme(major_font_latin="나눔스퀘어 ExtraBold", major_font_hangul="나눔스퀘어 ExtraBold")
+    _update_paragraph_style(prop_elem, theme_info, scheme_prefix="mj")
+    assert [elem.get("typeface") for elem in prop_elem] == ["나눔스퀘어 Black", "+mj-ea"]
+
+
+def test_paragraph_style_preserves_weight_of_monospace_run_when_preserving(
+    parse_fragment: ParseFragment, make_theme: MakeTheme
+) -> None:
+    prop_elem = parse_fragment('<a:rPr><a:latin typeface="JetBrains Mono ExtraBold"/><a:ea typeface="굴림"/></a:rPr>')
+    _update_paragraph_style(prop_elem, make_theme(preserve_mono=True))
+    assert [elem.get("typeface") for elem in prop_elem] == ["JetBrains Mono ExtraBold", "굴림"]
+
+
+@pytest.mark.parametrize(
     "preserve_mono,fragment,expected",
     [
+        (False, '<a:defRPr><a:latin typeface="Pretendard Light"/></a:defRPr>', "MIN-LT Light"),
+        (False, '<a:defRPr><a:latin typeface="Pretendard Regular"/></a:defRPr>', "MIN-LT SemiBold"),
+        (False, '<a:defRPr><a:latin typeface="+mn-lt"/></a:defRPr>', "MIN-LT SemiBold"),
+        (False, '<a:defRPr><a:ea typeface="나눔스퀘어 ExtraBold"/></a:defRPr>', "MIN-EA ExtraBold"),
+        (False, '<a:defRPr><a:latin typeface="Consolas Bold"/></a:defRPr>', "MONO-LT Bold"),
         (False, '<a:defRPr><a:latin typeface="Consolas"/></a:defRPr>', "MONO-LT SemiBold"),
         (False, '<a:defRPr><a:latin typeface="Pretendard"/></a:defRPr>', "MIN-LT SemiBold"),
         (True, '<a:defRPr><a:latin typeface="Consolas"/></a:defRPr>', "Consolas"),
@@ -178,14 +256,15 @@ def test_first_level_bullet_style(
 @pytest.mark.parametrize(
     "preserve_mono,expected",
     [
-        (False, ["MIN-SYM", "MIN-SYM", "MIN-SYM"]),
-        (True, ["Consolas", "MIN-SYM", "MIN-SYM"]),
+        (False, ["MIN-SYM", "MIN-SYM", "MIN-SYM Bold", "MIN-SYM"]),
+        (True, ["Consolas", "MIN-SYM", "MIN-SYM Bold", "MIN-SYM"]),
     ],
 )
 def test_normalize_slide_font_bullet_fonts(make_theme: MakeTheme, preserve_mono: bool, expected: list[str]) -> None:
     root_elem = _parse_slide(
         '<a:pPr><a:buFont typeface="Consolas"/></a:pPr>'
         '<a:pPr><a:buFont typeface="Wingdings"/></a:pPr>'
+        '<a:pPr><a:buFont typeface="Arial Bold"/></a:pPr>'
         '<a:pPr><a:buFont charset="2"/></a:pPr>'  # no typeface: must not raise
     )
     _normalize_slide_font(root_elem, make_theme(preserve_mono=preserve_mono), log_prefix="test")
@@ -357,6 +436,23 @@ def test_master_body_style_double_pass(tmp_path: Path, make_theme: MakeTheme) ->
     assert latin_elem.get("typeface") == "Sarasa Term K SemiBold"
 
 
+def test_master_body_style_preserves_first_level_weight(tmp_path: Path, make_theme: MakeTheme) -> None:
+    """Both passes over a first-level body style must keep an explicit weight variant."""
+    master_path = _write_part(
+        tmp_path,
+        "ppt/slideMasters/slideMaster1.xml",
+        "<p:bodyStyle>"
+        '<a:lvl1pPr><a:defRPr><a:latin typeface="Pretendard Medium"/><a:ea typeface="굴림"/></a:defRPr></a:lvl1pPr>'
+        '<a:lvl2pPr><a:defRPr><a:latin typeface="Pretendard Light"/><a:ea typeface="굴림"/></a:defRPr></a:lvl2pPr>'
+        "</p:bodyStyle>",
+    )
+    _write_part(tmp_path, "ppt/presentation.xml", "<p:defaultTextStyle/>")
+    normalize_master_fonts(tmp_path, make_theme(body_first_level_style="SemiBold"))
+    root_elem = etree.parse(master_path)
+    typefaces = [elem.get("typeface") for elem in xpath_elements(root_elem, "//a:latin | //a:ea")]
+    assert typefaces == ["MIN-LT Medium", "MIN-EA SemiBold", "MIN-LT Light", "+mn-ea"]
+
+
 @pytest.mark.parametrize("preserve_mono,expected_mono", [(False, "MONO-LT"), (True, "Consolas")])
 def test_normalize_slide_font_table_cells(make_theme: MakeTheme, preserve_mono: bool, expected_mono: str) -> None:
     """Text inside table cells lives in a graphic frame, not a shape, and must be normalized too."""
@@ -377,14 +473,14 @@ def test_normalize_slide_font_table_cells(make_theme: MakeTheme, preserve_mono: 
 @pytest.mark.parametrize(
     "preserve_mono,expected",
     [
-        (False, ["fontRef:minor", "font:MONO-LT,+mn-ea", "fontRef:major"]),
-        (True, ["fontRef:minor", "font:Consolas,굴림", "fontRef:major"]),
+        (False, ["fontRef:minor", "font:MONO-LT,+mn-ea", "fontRef:major", "font:MIN-LT Bold,+mn-ea"]),
+        (True, ["fontRef:minor", "font:Consolas,굴림", "fontRef:major", "font:MIN-LT Bold,+mn-ea"]),
     ],
 )
 def test_normalize_table_style_fonts(
     tmp_path: Path, make_theme: MakeTheme, preserve_mono: bool, expected: list[str]
 ) -> None:
-    """Explicit fonts in table styles must defer to the theme's minor font, except monospace ones."""
+    """Explicit fonts in table styles must defer to the theme's minor font, except monospace or weighted ones."""
     part_path = _write_part(
         tmp_path,
         "ppt/tableStyles.xml",
@@ -396,6 +492,8 @@ def test_normalize_table_style_fonts(
         '<a:firstRow><a:tcTxStyle><a:font><a:latin typeface="Consolas"/><a:ea typeface="굴림"/></a:font>'
         "</a:tcTxStyle></a:firstRow>"
         '<a:lastRow><a:tcTxStyle><a:fontRef idx="major"/></a:tcTxStyle></a:lastRow>'
+        '<a:firstCol><a:tcTxStyle><a:font><a:latin typeface="Arial Bold"/><a:ea typeface="굴림"/></a:font>'
+        "</a:tcTxStyle></a:firstCol>"
         "</a:tblStyle></a:tblStyleLst>",
     )
     normalize_table_style_fonts(tmp_path, make_theme(preserve_mono=preserve_mono))

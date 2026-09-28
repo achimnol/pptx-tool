@@ -1,4 +1,5 @@
 import logging
+import re
 import sys
 from pathlib import Path
 from typing import Final, cast
@@ -67,6 +68,13 @@ known_monospace_fonts: Final = {
 }
 
 preservable_typeface_tags: Final = frozenset({"latin", "ea", "cs", "sym", "font"})
+
+# The weight suffix of a typeface name such as "Pretendard ExtraBold" or "Segoe UI Semi Bold".
+# "Book" is left out because it is a part of family names like "Franklin Gothic Book".
+_weight_suffix_pattern: Final = re.compile(
+    r"\s+(?:(?P<prefix>extra|ultra|semi|demi)[\s-]?)?(?P<base>thin|hairline|light|regular|normal|medium|bold|black|heavy)$",
+    re.IGNORECASE,
+)
 
 
 def local_tag(tag_name: str | bytes | etree._Element) -> str:
@@ -275,10 +283,35 @@ def generate_font_theme(theme_info: Theme, theme_name: str, *, overwrite: bool =
     return theme_path
 
 
+def _split_weight(typeface: str | None) -> tuple[str, str | None]:
+    """
+    Split a typeface name into its family and weight variant names, such as "Pretendard" and "ExtraBold".
+
+    The weight variant is None if the name has no weight suffix or has the regular weight suffix.
+    """
+    if not typeface:
+        return "", None
+    if (m := _weight_suffix_pattern.search(typeface)) is None:
+        return typeface, None
+    family = typeface[: m.start()]
+    base = m.group("base").lower()
+    if base in ("regular", "normal"):
+        return family, None
+    prefix = m.group("prefix")
+    return family, (prefix.capitalize() if prefix else "") + base.capitalize()
+
+
+def _with_weight(typeface: str, weight: str | None) -> str:
+    """Replace the weight variant of the given typeface name, keeping it as-is when the weight is None."""
+    if weight is None:
+        return typeface
+    return f"{_split_weight(typeface)[0]} {weight}"
+
+
 def _match_monospace_font(typeface: str | None) -> bool:
     if not typeface:
         return False
-    return typeface.lower() in known_monospace_fonts
+    return _split_weight(typeface)[0].lower() in known_monospace_fonts
 
 
 def _has_monospace_font(prop_elem: etree._Element) -> bool:
@@ -291,27 +324,56 @@ def _has_monospace_font(prop_elem: etree._Element) -> bool:
     return False
 
 
+def _has_weight_variant(prop_elem: etree._Element) -> bool:
+    """Check if any typeface of the given text property element has a non-regular weight variant."""
+    for elem in prop_elem:
+        if local_tag(elem) not in preservable_typeface_tags:
+            continue
+        if _split_weight(elem.get("typeface"))[1] is not None:
+            return True
+    return False
+
+
 def _update_paragraph_style(prop_elem: etree._Element, theme_info: Theme, scheme_prefix: str = "mn") -> None:
     if theme_info.preserve_mono and _has_monospace_font(prop_elem):
         return
     # Snapshot the children: the "font" case removes from the element being iterated.
     for elem in list(prop_elem):
         elem_name = local_tag(elem)
+        typeface = elem.get("typeface")
+        weight = _split_weight(typeface)[1]
         match elem_name:
             case "latin" | "ea" | "cs":
-                if _match_monospace_font(elem.get("typeface")):
+                if _match_monospace_font(typeface):
                     elem.clear()
                     if elem_name == "latin":
-                        elem.set("typeface", theme_info.mono_font_latin)
+                        elem.set("typeface", _with_weight(theme_info.mono_font_latin, weight))
                     else:
-                        elem.set("typeface", theme_info.mono_font_hangul)
+                        elem.set("typeface", _with_weight(theme_info.mono_font_hangul, weight))
+                elif weight is not None:
+                    # The theme font reference cannot carry a weight, so name the theme font explicitly.
+                    elem.clear()
+                    match scheme_prefix, elem_name:
+                        case "mn", "latin":
+                            family = theme_info.minor_font_latin
+                        case "mn", _:
+                            family = theme_info.minor_font_hangul
+                        case _, "latin":
+                            family = theme_info.major_font_latin
+                        case _, _:
+                            family = theme_info.major_font_hangul
+                    elem.set("typeface", _with_weight(family, weight))
                 else:
                     elem.clear()
                     elem.set("typeface", f"+{scheme_prefix}-{style_typeface_map[elem_name]}")
             case "sym":
                 elem.clear()
                 elem.set(
-                    "typeface", theme_info.minor_font_symbol if scheme_prefix == "mn" else theme_info.major_font_symbol
+                    "typeface",
+                    _with_weight(
+                        theme_info.minor_font_symbol if scheme_prefix == "mn" else theme_info.major_font_symbol,
+                        weight,
+                    ),
                 )
             case "font":
                 prop_elem.remove(elem)
@@ -326,21 +388,24 @@ def _update_first_level_bullet_style(prop_elem: etree._Element, theme_info: Them
         return
     for elem in prop_elem:
         elem_name = local_tag(elem)
+        typeface = elem.get("typeface")
+        # An explicit weight variant takes precedence over the theme's first-level style.
+        weight = _split_weight(typeface)[1] or first_level_style
         match elem_name:
             case "latin":
-                if _match_monospace_font(elem.get("typeface")):
+                if _match_monospace_font(typeface):
                     elem.clear()
-                    elem.set("typeface", theme_info.mono_font_latin + " " + first_level_style)
+                    elem.set("typeface", _with_weight(theme_info.mono_font_latin, weight))
                 else:
                     elem.clear()
-                    elem.set("typeface", theme_info.minor_font_latin + " " + first_level_style)
+                    elem.set("typeface", _with_weight(theme_info.minor_font_latin, weight))
             case "ea" | "cs":
-                if _match_monospace_font(elem.get("typeface")):
+                if _match_monospace_font(typeface):
                     elem.clear()
-                    elem.set("typeface", theme_info.mono_font_hangul + " " + first_level_style)
+                    elem.set("typeface", _with_weight(theme_info.mono_font_hangul, weight))
                 else:
                     elem.clear()
-                    elem.set("typeface", theme_info.minor_font_hangul + " " + first_level_style)
+                    elem.set("typeface", _with_weight(theme_info.minor_font_hangul, weight))
             case _:
                 pass
 
@@ -373,8 +438,9 @@ def normalize_master_fonts(
         for bullet_font_elem in xpath_elements(root_elem, "//p:bodyStyle//a:buFont"):
             if theme_info.preserve_mono and _match_monospace_font(bullet_font_elem.get("typeface")):
                 continue
+            weight = _split_weight(bullet_font_elem.get("typeface"))[1]
             bullet_font_elem.clear()
-            bullet_font_elem.set("typeface", theme_info.minor_font_symbol)
+            bullet_font_elem.set("typeface", _with_weight(theme_info.minor_font_symbol, weight))
 
         root_elem.write(master_path)
 
@@ -418,8 +484,9 @@ def _normalize_slide_font(root_elem: etree._ElementTree, theme_info: Theme, log_
     for bullet_font_elem in xpath_elements(root_elem, "//a:pPr//a:buFont"):
         if theme_info.preserve_mono and _match_monospace_font(bullet_font_elem.get("typeface")):
             continue
+        weight = _split_weight(bullet_font_elem.get("typeface"))[1]
         bullet_font_elem.clear()
-        bullet_font_elem.set("typeface", theme_info.minor_font_symbol)
+        bullet_font_elem.set("typeface", _with_weight(theme_info.minor_font_symbol, weight))
 
 
 def normalize_layout_fonts(
@@ -446,7 +513,7 @@ def normalize_slide_fonts(
 
 def _update_table_text_style(tx_style_elem: etree._Element, theme_info: Theme) -> None:
     for font_elem in xpath_elements(tx_style_elem, "a:font"):
-        if _has_monospace_font(font_elem):
+        if _has_monospace_font(font_elem) or _has_weight_variant(font_elem):
             _update_paragraph_style(font_elem, theme_info)
             continue
         # Defer to the theme's minor font like the built-in table styles do.
