@@ -23,6 +23,12 @@ nav.app-topnav {
   }
 }
 
+/* Span the processing log panel across the viewport, like a split panel, instead of a centered sheet. */
+div.process-log-sheet {
+  max-width: none;
+  border-radius: 0;
+}
+
 /* Size the path copy button and its icon to the surrounding supporting text. */
 button.copyable-path-button {
   height: calc(var(--text-supporting-size) + 0.5rem);
