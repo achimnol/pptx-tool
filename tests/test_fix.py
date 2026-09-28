@@ -6,10 +6,11 @@ from lxml import etree
 
 from pptx_tool.__main__ import main
 from pptx_tool.fix import (
+    FontName,
     _has_monospace_font,
     _match_monospace_font,
     _normalize_slide_font,
-    _split_weight,
+    _split_font_name,
     _update_first_level_bullet_style,
     _update_paragraph_style,
     fix_theme_font,
@@ -46,6 +47,9 @@ def _parse_slide(body: str) -> etree._ElementTree:
         ("Consolas Regular", True),
         ("Cascadia Code Semi-Light", True),
         ("jetbrains mono extrabold", True),
+        ("Consolas Italic", True),
+        ("Consolas Bold Italic", True),
+        ("DejaVu Sans Mono Oblique", True),
         ("Pretendard", False),
         ("Pretendard Bold", False),
         ("", False),
@@ -59,28 +63,35 @@ def test_match_monospace_font(typeface: str | None, expected: bool) -> None:
 @pytest.mark.parametrize(
     "typeface,expected",
     [
-        ("Pretendard", ("Pretendard", None)),
-        ("Pretendard Black", ("Pretendard", "Black")),
-        ("Pretendard ExtraBold", ("Pretendard", "ExtraBold")),
-        ("Pretendard SemiBold", ("Pretendard", "SemiBold")),
-        ("Segoe UI Semibold", ("Segoe UI", "SemiBold")),
-        ("Segoe UI Semi Bold", ("Segoe UI", "SemiBold")),
-        ("Noto Sans KR Extra-Light", ("Noto Sans KR", "ExtraLight")),
-        ("나눔스퀘어 ExtraBold", ("나눔스퀘어", "ExtraBold")),
-        ("Paperlogy 7 Bold", ("Paperlogy 7", "Bold")),
-        ("Arial Black", ("Arial", "Black")),
-        ("Pretendard Medium", ("Pretendard", "Medium")),
-        ("Pretendard Thin", ("Pretendard", "Thin")),
-        ("Pretendard Regular", ("Pretendard", None)),
-        ("Franklin Gothic Book", ("Franklin Gothic Book", None)),
-        ("Boldface", ("Boldface", None)),
-        ("+mn-lt", ("+mn-lt", None)),
-        ("", ("", None)),
-        (None, ("", None)),
+        ("Pretendard", FontName("Pretendard")),
+        ("Pretendard Black", FontName("Pretendard", "Black")),
+        ("Pretendard ExtraBold", FontName("Pretendard", "ExtraBold")),
+        ("Pretendard SemiBold", FontName("Pretendard", "SemiBold")),
+        ("Segoe UI Semibold", FontName("Segoe UI", "SemiBold")),
+        ("Segoe UI Semi Bold", FontName("Segoe UI", "SemiBold")),
+        ("Noto Sans KR Extra-Light", FontName("Noto Sans KR", "ExtraLight")),
+        ("나눔스퀘어 ExtraBold", FontName("나눔스퀘어", "ExtraBold")),
+        ("Paperlogy 7 Bold", FontName("Paperlogy 7", "Bold")),
+        ("Arial Black", FontName("Arial", "Black")),
+        ("Pretendard Medium", FontName("Pretendard", "Medium")),
+        ("Pretendard Thin", FontName("Pretendard", "Thin")),
+        ("Pretendard Regular", FontName("Pretendard")),
+        ("Pretendard Italic", FontName("Pretendard", None, "Italic")),
+        ("Pretendard Regular Italic", FontName("Pretendard", None, "Italic")),
+        ("Pretendard Bold Italic", FontName("Pretendard", "Bold", "Italic")),
+        ("Segoe UI Semi Bold italic", FontName("Segoe UI", "SemiBold", "Italic")),
+        ("DejaVu Sans Mono Oblique", FontName("DejaVu Sans Mono", None, "Oblique")),
+        ("Pretendard Italic Bold", FontName("Pretendard Italic", "Bold")),
+        ("Franklin Gothic Book", FontName("Franklin Gothic Book")),
+        ("Boldface", FontName("Boldface")),
+        ("Italic", FontName("Italic")),
+        ("+mn-lt", FontName("+mn-lt")),
+        ("", FontName("")),
+        (None, FontName("")),
     ],
 )
-def test_split_weight(typeface: str | None, expected: tuple[str, str | None]) -> None:
-    assert _split_weight(typeface) == expected
+def test_split_font_name(typeface: str | None, expected: FontName) -> None:
+    assert _split_font_name(typeface) == expected
 
 
 @pytest.mark.parametrize(
@@ -92,6 +103,7 @@ def test_split_weight(typeface: str | None, expected: tuple[str, str | None]) ->
         ('<a:rPr><a:cs typeface="Menlo"/></a:rPr>', True),
         ('<a:rPr><a:latin typeface="Pretendard"/><a:ea typeface="D2Coding Bold"/></a:rPr>', False),
         ('<a:rPr><a:latin typeface="Pretendard Bold"/><a:ea typeface="Sarasa Term K Bold"/></a:rPr>', True),
+        ('<a:rPr><a:latin typeface="Pretendard Italic"/><a:ea typeface="Sarasa Term K Italic"/></a:rPr>', True),
         ('<a:rPr><a:sym typeface="SF Mono"/></a:rPr>', True),
         ('<a:rPr><a:font script="Hang" typeface="Hack"/></a:rPr>', True),
         ('<a:rPr><a:latin typeface="Pretendard"/><a:ea typeface="Pretendard"/></a:rPr>', False),
@@ -190,20 +202,48 @@ def test_paragraph_style_still_converts_non_monospace_when_preserving(
 @pytest.mark.parametrize(
     "scheme_prefix,expected",
     [
-        ("mn", ["MIN-LT Black", "MIN-EA Light", "+mn-cs", "MIN-SYM Medium", "MONO-LT Bold", "+mn-lt"]),
-        ("mj", ["MAJ-LT Black", "MAJ-EA Light", "+mj-cs", "MAJ-SYM Medium", "MONO-LT Bold", "+mj-lt"]),
+        (
+            "mn",
+            [
+                "MIN-LT Black",
+                "MIN-EA Light",
+                "+mn-cs",
+                "MIN-SYM Medium",
+                "MONO-LT Bold",
+                "+mn-lt",
+                "MIN-LT Italic",
+                "MIN-EA Bold Italic",
+                "MONO-LT Italic",
+            ],
+        ),
+        (
+            "mj",
+            [
+                "MAJ-LT Black",
+                "MAJ-EA Light",
+                "+mj-cs",
+                "MAJ-SYM Medium",
+                "MONO-LT Bold",
+                "+mj-lt",
+                "MAJ-LT Italic",
+                "MAJ-EA Bold Italic",
+                "MONO-LT Italic",
+            ],
+        ),
     ],
 )
 def test_paragraph_style_preserves_weight_variants(
     parse_fragment: ParseFragment, make_theme: MakeTheme, scheme_prefix: str, expected: list[str]
 ) -> None:
-    """A weight variant must survive the replacement, naming the theme font explicitly instead of referencing it."""
+    """A weight or slope variant must survive the replacement, naming the theme font explicitly."""
     root_elem = parse_fragment(
         "<a:p>"
         '<a:rPr><a:latin typeface="Arial Black"/><a:ea typeface="나눔스퀘어 Light"/>'
         '<a:cs typeface="Pretendard Regular"/><a:sym typeface="Pretendard Medium"/></a:rPr>'
         '<a:rPr><a:latin typeface="JetBrains Mono Bold"/></a:rPr>'
         '<a:rPr><a:latin typeface="Pretendard"/></a:rPr>'
+        '<a:rPr><a:latin typeface="Pretendard Italic"/><a:ea typeface="나눔스퀘어 Bold Italic"/></a:rPr>'
+        '<a:rPr><a:latin typeface="Consolas Italic"/></a:rPr>'
         "</a:p>"
     )
     for prop_elem in root_elem:
@@ -215,10 +255,13 @@ def test_paragraph_style_replaces_weight_of_weighted_theme_font(
     parse_fragment: ParseFragment, make_theme: MakeTheme
 ) -> None:
     """A theme font that already has a weight suffix must have it replaced, not doubled."""
-    prop_elem = parse_fragment('<a:rPr><a:latin typeface="Arial Black"/><a:ea typeface="굴림"/></a:rPr>')
+    prop_elem = parse_fragment(
+        '<a:rPr><a:latin typeface="Arial Black"/><a:ea typeface="굴림"/><a:cs typeface="Arial Italic"/></a:rPr>'
+    )
     theme_info = make_theme(major_font_latin="나눔스퀘어 ExtraBold", major_font_hangul="나눔스퀘어 ExtraBold")
     _update_paragraph_style(prop_elem, theme_info, scheme_prefix="mj")
-    assert [elem.get("typeface") for elem in prop_elem] == ["나눔스퀘어 Black", "+mj-ea"]
+    # A slope alone keeps the theme font's own weight.
+    assert [elem.get("typeface") for elem in prop_elem] == ["나눔스퀘어 Black", "+mj-ea", "나눔스퀘어 ExtraBold Italic"]
 
 
 def test_paragraph_style_preserves_weight_of_monospace_run_when_preserving(
@@ -237,6 +280,10 @@ def test_paragraph_style_preserves_weight_of_monospace_run_when_preserving(
         (False, '<a:defRPr><a:latin typeface="+mn-lt"/></a:defRPr>', "MIN-LT SemiBold"),
         (False, '<a:defRPr><a:ea typeface="나눔스퀘어 ExtraBold"/></a:defRPr>', "MIN-EA ExtraBold"),
         (False, '<a:defRPr><a:latin typeface="Consolas Bold"/></a:defRPr>', "MONO-LT Bold"),
+        (False, '<a:defRPr><a:latin typeface="Pretendard Italic"/></a:defRPr>', "MIN-LT SemiBold Italic"),
+        (False, '<a:defRPr><a:latin typeface="Pretendard Light Italic"/></a:defRPr>', "MIN-LT Light Italic"),
+        (False, '<a:defRPr><a:latin typeface="Consolas Italic"/></a:defRPr>', "MONO-LT SemiBold Italic"),
+        (True, '<a:defRPr><a:latin typeface="Consolas Italic"/></a:defRPr>', "Consolas Italic"),
         (False, '<a:defRPr><a:latin typeface="Consolas"/></a:defRPr>', "MONO-LT SemiBold"),
         (False, '<a:defRPr><a:latin typeface="Pretendard"/></a:defRPr>', "MIN-LT SemiBold"),
         (True, '<a:defRPr><a:latin typeface="Consolas"/></a:defRPr>', "Consolas"),
@@ -479,14 +526,20 @@ def test_normalize_slide_font_table_cells(make_theme: MakeTheme, preserve_mono: 
 @pytest.mark.parametrize(
     "preserve_mono,expected",
     [
-        (False, ["fontRef:minor", "font:MONO-LT,+mn-ea", "fontRef:major", "font:MIN-LT Bold,+mn-ea"]),
-        (True, ["fontRef:minor", "font:Consolas,굴림", "fontRef:major", "font:MIN-LT Bold,+mn-ea"]),
+        (
+            False,
+            ["fontRef:minor", "font:MONO-LT,+mn-ea", "fontRef:major", "font:MIN-LT Bold,+mn-ea", "font:MIN-LT Italic"],
+        ),
+        (
+            True,
+            ["fontRef:minor", "font:Consolas,굴림", "fontRef:major", "font:MIN-LT Bold,+mn-ea", "font:MIN-LT Italic"],
+        ),
     ],
 )
 def test_normalize_table_style_fonts(
     tmp_path: Path, make_theme: MakeTheme, preserve_mono: bool, expected: list[str]
 ) -> None:
-    """Explicit fonts in table styles must defer to the theme's minor font, except monospace or weighted ones."""
+    """Explicit fonts in table styles must defer to the theme's minor font, except monospace or variant ones."""
     part_path = _write_part(
         tmp_path,
         "ppt/tableStyles.xml",
@@ -500,6 +553,7 @@ def test_normalize_table_style_fonts(
         '<a:lastRow><a:tcTxStyle><a:fontRef idx="major"/></a:tcTxStyle></a:lastRow>'
         '<a:firstCol><a:tcTxStyle><a:font><a:latin typeface="Arial Bold"/><a:ea typeface="굴림"/></a:font>'
         "</a:tcTxStyle></a:firstCol>"
+        '<a:lastCol><a:tcTxStyle><a:font><a:latin typeface="Arial Italic"/></a:font></a:tcTxStyle></a:lastCol>'
         "</a:tblStyle></a:tblStyleLst>",
     )
     normalize_table_style_fonts(tmp_path, make_theme(preserve_mono=preserve_mono))
