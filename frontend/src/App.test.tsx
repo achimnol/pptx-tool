@@ -174,7 +174,22 @@ describe('App', () => {
     const form = request.body as FormData;
     expect((form.get('file') as File).name).toBe('deck.pptx');
     expect(JSON.parse(form.get('theme') as string)).toEqual(THEME);
-    expect(await screen.findByText('Processing log')).toBeInTheDocument();
+    // The log opens in a bottom panel only when requested.
+    const logButton = await screen.findByRole('button', {name: 'Processing log'});
+    const isLogShown = () =>
+      screen.queryByText('Current font scheme')?.closest('dialog')?.open ?? false;
+    expect(isLogShown()).toBe(false);
+    await userEvent.click(logButton);
+    expect(logButton).toHaveAttribute('aria-expanded', 'true');
+    await waitFor(() => expect(isLogShown()).toBe(true));
+    await userEvent.click(screen.getByRole('button', {name: 'Close the processing log'}));
+    expect(logButton).toHaveAttribute('aria-expanded', 'false');
+    await waitFor(() => expect(isLogShown()).toBe(false));
+    // The button toggles the panel as well.
+    await userEvent.click(logButton);
+    await waitFor(() => expect(isLogShown()).toBe(true));
+    await userEvent.click(logButton);
+    await waitFor(() => expect(isLogShown()).toBe(false));
   });
 
   it('shows the server errors', async () => {
