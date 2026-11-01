@@ -211,6 +211,29 @@ describe('App', () => {
     expect(screen.getByText('Not a valid pptx file: File is not a zip file')).toBeInTheDocument();
   });
 
+  it('shows the processing log up to a processing failure', async () => {
+    renderApp([
+      {
+        method: 'POST',
+        path: '/api/fix-font',
+        status: 422,
+        body: {
+          status_code: 422,
+          detail: 'Failed to process the presentation: boom',
+          extra: {log: 'Current font scheme\nValueError: boom\n'},
+        },
+      },
+    ]);
+    await waitForEditor();
+    await userEvent.upload(getFileInput('.pptx'), new File(['PK'], 'deck.pptx'));
+    await userEvent.click(screen.getByRole('button', {name: 'Fix fonts'}));
+    expect(await screen.findByText('Failed to fix the fonts')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', {name: 'Processing log'}));
+    await waitFor(() =>
+      expect(screen.getByText(/ValueError: boom/).closest('dialog')?.open).toBe(true),
+    );
+  });
+
   it('reports a server connection failure', async () => {
     vi.stubGlobal('fetch', () => Promise.reject(new TypeError('Failed to fetch')));
     render(<App />);

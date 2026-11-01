@@ -468,6 +468,29 @@ def test_fix_theme_font_is_never_preserved(tmp_path: Path, make_theme: MakeTheme
     assert typefaces == ["MAJ-LT", "MIN-LT"]
 
 
+def test_fix_theme_font_skips_parts_without_font_scheme(tmp_path: Path, make_theme: MakeTheme) -> None:
+    """A theme override may carry only a color scheme, which matches the theme part glob as well."""
+    theme_path = _write_part(
+        tmp_path,
+        "ppt/theme/theme1.xml",
+        '<a:fontScheme name="Office"><a:majorFont><a:latin typeface="Arial"/></a:majorFont>'
+        '<a:minorFont><a:latin typeface="Arial"/></a:minorFont></a:fontScheme>',
+    )
+    override_path = _write_part(
+        tmp_path,
+        "ppt/theme/themeOverride1.xml",
+        '<a:clrScheme name="Office"><a:dk1><a:srgbClr val="000000"/></a:dk1></a:clrScheme>',
+    )
+    override_xml = override_path.read_bytes()
+    fix_theme_font(tmp_path, make_theme())
+    assert override_path.read_bytes() == override_xml
+    root_elem = etree.parse(theme_path)
+    typefaces = [
+        elem.get("typeface") for elem in xpath_elements(root_elem, "//a:majorFont/a:latin | //a:minorFont/a:latin")
+    ]
+    assert typefaces == ["MAJ-LT", "MIN-LT"]
+
+
 def test_master_body_style_double_pass(tmp_path: Path, make_theme: MakeTheme) -> None:
     """A theme whose monoFont is itself a known monospace font keeps it in the body style.
 
