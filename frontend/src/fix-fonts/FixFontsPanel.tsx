@@ -56,7 +56,10 @@ export function FixFontsPanel({
       toast({body: `Fixed the fonts and saved ${filename}.`});
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
-      if (e instanceof ApiError) onFieldErrors(e.fieldErrors);
+      if (e instanceof ApiError) {
+        onFieldErrors(e.fieldErrors);
+        setLog(e.log);
+      }
     } finally {
       setIsRunning(false);
     }

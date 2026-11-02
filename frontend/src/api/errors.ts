@@ -8,11 +8,20 @@ export interface FieldError {
 export class ApiError extends Error {
   readonly status: number;
   readonly fieldErrors: FieldError[];
+  /** The processing log up to the failure, if the server sent one. */
+  readonly log: string | null;
 
   constructor(status: number, detail: string, extra?: unknown) {
     super(detail);
     this.name = 'ApiError';
     this.status = status;
+    this.log =
+      typeof extra === 'object' &&
+      extra !== null &&
+      !Array.isArray(extra) &&
+      typeof (extra as {log?: unknown}).log === 'string'
+        ? (extra as {log: string}).log
+        : null;
     this.fieldErrors = Array.isArray(extra)
       ? extra.filter(
           (e): e is FieldError =>

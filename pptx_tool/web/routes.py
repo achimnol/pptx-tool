@@ -163,9 +163,11 @@ def fix_font(
             # ValueError comes from unexpected nodes such as XML comments in the text properties.
             except (OSError, etree.XMLSyntaxError, LookupError, ValueError) as e:
                 message = _hide_dir(_hide_dir(str(e), str(req_dir)), str(web_config.tmp_dir))
+                # The log up to the failure tells which part of the presentation could not be processed.
                 raise HTTPException(
                     status_code=HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=f"Failed to process the presentation: {message}",
+                    extra={"log": f"{log.text}{type(e).__name__}: {message}\n"},
                 ) from e
         filename = f"{stem}-fixed.pptx"
         download_id = storage.keep_for_download(req_dir, dst_path, filename)

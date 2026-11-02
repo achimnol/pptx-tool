@@ -381,6 +381,10 @@ def test_fix_font_unexpected_structure(client: TestClient[Litestar], tmp_path: P
             zf.writestr(name, content)
     resp = _post_fix_font(client, path.read_bytes())
     assert resp.status_code == 422
+    # The log up to the failure ends with the error, to be shown in the UI.
+    log = resp.json()["extra"]["log"]
+    assert "Current font scheme" in log
+    assert log.endswith(f"ValueError: {resp.json()['detail'].removeprefix('Failed to process the presentation: ')}\n")
 
 
 def test_install_font_theme_write_error(

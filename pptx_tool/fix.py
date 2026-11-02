@@ -162,7 +162,12 @@ def fix_theme_font(
     theme_dir = work_path / "ppt" / "theme"
     for theme_path in theme_dir.glob("theme*.xml"):
         root_elem = etree.parse(theme_path)
-        font_scheme_elem = xpath_elements(root_elem, "//a:fontScheme")[0]
+        font_scheme_elems = xpath_elements(root_elem, "//a:fontScheme")
+        if not font_scheme_elems:
+            # Theme overrides (themeOverride*.xml) may override only the color scheme.
+            logger.info("Skipping %s without a font scheme.", theme_path.name)
+            continue
+        font_scheme_elem = font_scheme_elems[0]
 
         # Print out current theme font configuration
         logger.info("Current font scheme: (name=%r)", font_scheme_elem.get("name"))
