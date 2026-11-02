@@ -1,7 +1,7 @@
 import asyncio
 import contextlib
 import importlib.metadata
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 
 import anyio.to_thread
 from litestar import Litestar, MediaType, Router, get
@@ -55,7 +55,7 @@ def create_app(web_config: WebConfig | None = None) -> Litestar:
     storage = RequestStorage(config.tmp_dir, config.tmp_quota, config.download_ttl)
 
     @contextlib.asynccontextmanager
-    async def expire_downloads(_: Litestar) -> AsyncIterator[None]:
+    async def expire_downloads(_: Litestar) -> AsyncGenerator[None]:
         task = asyncio.create_task(_expire_downloads_periodically(storage))
         try:
             yield

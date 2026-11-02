@@ -7,7 +7,7 @@ import stat
 import tempfile
 import threading
 import time
-from collections.abc import Iterator
+from collections.abc import Generator
 from pathlib import Path
 
 
@@ -97,7 +97,7 @@ class RequestStorage:
                     self._remove(path)
 
     @contextlib.contextmanager
-    def request_dir(self) -> Iterator[Path]:
+    def request_dir(self) -> Generator[Path]:
         """Create a working directory for a request, which is deleted when the request is done."""
         self._ensure_root()
         with self._lock:

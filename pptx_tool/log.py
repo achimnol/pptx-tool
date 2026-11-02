@@ -3,7 +3,7 @@
 import logging
 import sys
 import threading
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from typing import TextIO
 
@@ -18,7 +18,7 @@ def _enable_info_level() -> None:
 
 
 @contextmanager
-def cli_logging(stream: TextIO | None = None) -> Iterator[None]:
+def cli_logging(stream: TextIO | None = None) -> Generator[None]:
     """Print the progress messages as plain lines to stdout (or the given stream) while in the context."""
     handler = logging.StreamHandler(stream or sys.stdout)
     handler.setFormatter(logging.Formatter("%(message)s"))
@@ -53,7 +53,7 @@ class _CaptureHandler(logging.Handler):
 
 
 @contextmanager
-def capture_log() -> Iterator[LogCapture]:
+def capture_log() -> Generator[LogCapture]:
     """
     Capture the progress messages emitted by the current thread while in the context.
 
