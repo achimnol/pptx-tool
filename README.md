@@ -40,6 +40,8 @@ the first-level body text without an explicit weight.
 The families naming their weights with a numeric prefix (see `numbered_weight_fonts` in
 `pptx_tool/fix.py`), such as Paperlogy and Freesentation, get the prefix for every weight including
 the regular one, such as "Paperlogy 4 Regular" or "Paperlogy 6 SemiBold".
+Since the bold attribute cannot select their bold weight, `titleBold` names it explicitly for the
+title fonts of these families, such as "Paperlogy 7 Bold", instead of setting the bold attribute.
 Note that the target font family must provide the variant for it to be rendered.
 
 By default, the text objects using a known monospace font (see `known_monospace_fonts`

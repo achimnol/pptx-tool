@@ -465,6 +465,91 @@ def test_normalize_master_fonts_still_applies_title_bold_to_preserved(
     assert next(iter(prop_elem)).get("typeface") == ("Consolas" if preserve_mono else "MONO-LT")
 
 
+@pytest.mark.parametrize(
+    "title_bold,body,expected_b,expected",
+    [
+        # A numbered-weight family names the bold weight explicitly instead of the synthesized bold.
+        (
+            True,
+            "<a:defRPr/>",
+            None,
+            ["Paperlogy 7 Bold", "Paperlogy 7 Bold", "Paperlogy 7 Bold"],
+        ),
+        (
+            True,
+            '<a:defRPr b="1"><a:solidFill/><a:latin typeface="Pretendard"/><a:sym typeface="Wingdings"/></a:defRPr>',
+            None,
+            ["Paperlogy 7 Bold", "Paperlogy 7 Bold", "Paperlogy 7 Bold", "Paperlogy 4 Regular"],
+        ),
+        # An explicit weight takes precedence over the title bold.
+        (
+            True,
+            '<a:defRPr><a:latin typeface="Pretendard ExtraBold"/></a:defRPr>',
+            None,
+            ["Paperlogy 8 ExtraBold", "Paperlogy 7 Bold", "Paperlogy 7 Bold"],
+        ),
+        (
+            False,
+            '<a:defRPr b="1"><a:latin typeface="Pretendard"/></a:defRPr>',
+            None,
+            ["+mj-lt"],
+        ),
+        # A monospace typeface is not a numbered-weight family, so it keeps the bold attribute.
+        (
+            True,
+            '<a:defRPr><a:latin typeface="Consolas"/></a:defRPr>',
+            "1",
+            ["MONO-LT", "Paperlogy 7 Bold", "Paperlogy 7 Bold"],
+        ),
+    ],
+)
+def test_normalize_master_fonts_title_bold_numbered_weight(
+    tmp_path: Path, make_theme: MakeTheme, title_bold: bool, body: str, expected_b: str | None, expected: list[str]
+) -> None:
+    master_path = _write_part(tmp_path, "ppt/slideMasters/slideMaster1.xml", f"<p:titleStyle>{body}</p:titleStyle>")
+    _write_part(tmp_path, "ppt/presentation.xml", "<p:defaultTextStyle/>")
+    theme_info = make_theme(
+        major_font_latin="Paperlogy",
+        major_font_hangul="Paperlogy",
+        major_font_symbol="Paperlogy",
+        title_bold=title_bold,
+    )
+    normalize_master_fonts(tmp_path, theme_info)
+    prop_elem = xpath_elements(etree.parse(master_path), "//a:defRPr")[0]
+    assert prop_elem.get("b") == expected_b
+    assert [elem.get("typeface") for elem in prop_elem if elem.get("typeface")] == expected
+    # The typeface elements must keep the schema order after the fill properties.
+    assert [local_tag(elem) for elem in prop_elem if elem.get("typeface")] == ["latin", "ea", "cs", "sym"][
+        : len(expected)
+    ]
+
+
+def test_normalize_slide_font_title_bold_numbered_weight(make_theme: MakeTheme) -> None:
+    """Title runs replacing the theme font reference must name the bold weight unless explicitly not bold."""
+    root_elem = _parse_slide(
+        '<p:sp><p:nvSpPr><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr><p:txBody><a:p>'
+        '<a:r><a:rPr><a:latin typeface="+mj-lt"/><a:ea typeface="Pretendard Light"/></a:rPr></a:r>'
+        '<a:r><a:rPr b="0"><a:latin typeface="+mj-lt"/></a:rPr></a:r>'
+        "</a:p></p:txBody></p:sp>"
+        '<p:sp><p:nvSpPr><p:nvPr><p:ph type="body"/></p:nvPr></p:nvSpPr><p:txBody><a:p>'
+        '<a:r><a:rPr><a:latin typeface="Pretendard"/></a:rPr></a:r>'
+        "</a:p></p:txBody></p:sp>"
+    )
+    theme_info = make_theme(
+        major_font_latin="Paperlogy",
+        major_font_hangul="Paperlogy",
+        minor_font_latin="Paperlogy",
+        title_bold=True,
+    )
+    _normalize_slide_font(root_elem, theme_info, "slide")
+    assert [elem.get("typeface") for elem in xpath_elements(root_elem, "//a:rPr/*")] == [
+        "Paperlogy 7 Bold",
+        "Paperlogy 3 Light",
+        "+mj-lt",
+        "+mn-lt",
+    ]
+
+
 @pytest.mark.parametrize("ph_type,expected", [("title", "+mj-lt"), ("body", "+mn-lt")])
 def test_normalize_slide_font_placeholder_branch(make_theme: MakeTheme, ph_type: str, expected: str) -> None:
     """A placeholder shape picks the major/minor scheme and also rewrites its defRPr."""

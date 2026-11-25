@@ -69,6 +69,9 @@ known_monospace_fonts: Final = {
 
 preservable_typeface_tags: Final = frozenset({"latin", "ea", "cs", "sym", "font"})
 
+# The schema order of the typeface child elements and the ones following them in a text property element.
+_typeface_elem_order: Final = ("latin", "ea", "cs", "sym", "hlinkClick", "hlinkMouseOver", "rtl", "extLst")
+
 # The families naming every weight with its numeric weight class (CSS weight / 100) as a prefix,
 # such as "Paperlogy 4 Regular" and "Paperlogy 7 Bold".
 numbered_weight_fonts: Final = {
@@ -426,9 +429,34 @@ def _has_font_variant(prop_elem: etree._Element) -> bool:
     return False
 
 
-def _update_paragraph_style(prop_elem: etree._Element, theme_info: Theme, scheme_prefix: str = "mn") -> None:
+def _is_numbered_weight_font(typeface: str | None) -> bool:
+    return _split_font_name(typeface).family.lower() in numbered_weight_fonts
+
+
+def _insert_typeface_elem(prop_elem: etree._Element, elem_name: str, typeface: str) -> None:
+    """Insert a typeface child element into the text property element, keeping the schema order."""
+    following = _typeface_elem_order[_typeface_elem_order.index(elem_name) + 1 :]
+    new_elem = etree.Element(etree.QName(xmlns["a"], elem_name), attrib={"typeface": typeface})
+    for index, elem in enumerate(prop_elem):
+        if local_tag(elem) in following:
+            prop_elem.insert(index, new_elem)
+            return
+    prop_elem.append(new_elem)
+
+
+def _update_paragraph_style(
+    prop_elem: etree._Element, theme_info: Theme, scheme_prefix: str = "mn", *, bold: bool = False
+) -> None:
+    """
+    Replace the typefaces of the text property element with the theme fonts.
+
+    If *bold* is set, the typefaces of the numbered-weight families are named with the bold weight
+    unless they have an explicit weight or the element is explicitly not bold,
+    because their weights are separate font families which the bold attribute cannot select.
+    """
     if theme_info.preserve_mono and _has_monospace_font(prop_elem):
         return
+    bold = bold and prop_elem.get("b") != "0"
     # Snapshot the children: the "font" case removes from the element being iterated.
     for elem in list(prop_elem):
         elem_name = local_tag(elem)
@@ -436,24 +464,27 @@ def _update_paragraph_style(prop_elem: etree._Element, theme_info: Theme, scheme
         variant = _split_font_name(typeface)
         match elem_name:
             case "latin" | "ea" | "cs":
+                match scheme_prefix, elem_name:
+                    case "mn", "latin":
+                        family = theme_info.minor_font_latin
+                    case "mn", _:
+                        family = theme_info.minor_font_hangul
+                    case _, "latin":
+                        family = theme_info.major_font_latin
+                    case _, _:
+                        family = theme_info.major_font_hangul
                 if _match_monospace_font(typeface):
                     elem.clear()
                     if elem_name == "latin":
                         elem.set("typeface", _with_variant(theme_info.mono_font_latin, variant))
                     else:
                         elem.set("typeface", _with_variant(theme_info.mono_font_hangul, variant))
+                elif bold and _is_numbered_weight_font(family):
+                    elem.clear()
+                    elem.set("typeface", _with_variant(family, variant._replace(weight=variant.weight or "Bold")))
                 elif variant.has_variant:
                     # The theme font reference cannot carry a weight or a slope, so name the theme font explicitly.
                     elem.clear()
-                    match scheme_prefix, elem_name:
-                        case "mn", "latin":
-                            family = theme_info.minor_font_latin
-                        case "mn", _:
-                            family = theme_info.minor_font_hangul
-                        case _, "latin":
-                            family = theme_info.major_font_latin
-                        case _, _:
-                            family = theme_info.major_font_hangul
                     elem.set("typeface", _with_variant(family, variant))
                 else:
                     elem.clear()
@@ -516,8 +547,22 @@ def normalize_master_fonts(
     for master_path in master_dir.glob("slideMaster*.xml"):
         root_elem = etree.parse(master_path)
         for prop_elem in xpath_elements(root_elem, "//p:titleStyle//a:defRPr"):
-            _update_paragraph_style(prop_elem, theme_info, scheme_prefix="mj")
-            if theme_info.title_bold:
+            if theme_info.title_bold and not (theme_info.preserve_mono and _has_monospace_font(prop_elem)):
+                # Name the bold weight explicitly for the inherited theme fonts of the numbered-weight families.
+                for elem_name, family in (
+                    ("latin", theme_info.major_font_latin),
+                    ("ea", theme_info.major_font_hangul),
+                    ("cs", theme_info.major_font_hangul),
+                ):
+                    if _is_numbered_weight_font(family) and not xpath_elements(prop_elem, f"a:{elem_name}"):
+                        _insert_typeface_elem(prop_elem, elem_name, f"+mj-{style_typeface_map[elem_name]}")
+            _update_paragraph_style(prop_elem, theme_info, scheme_prefix="mj", bold=theme_info.title_bold)
+            typeface_elems = [elem for elem in prop_elem if local_tag(elem) in ("latin", "ea", "cs")]
+            # The bold attribute would synthesize a bolder style over the explicit weights of numbered-weight families.
+            explicit_weights = bool(typeface_elems) and all(
+                _is_numbered_weight_font(elem.get("typeface")) for elem in typeface_elems
+            )
+            if theme_info.title_bold and not explicit_weights:
                 prop_elem.set("b", "1")
             elif "b" in prop_elem.attrib:
                 del prop_elem.attrib["b"]
@@ -547,12 +592,13 @@ def _normalize_slide_font(root_elem: etree._ElementTree, theme_info: Theme, log_
                 case _:  # other values may be "body", "sldNum", ...
                     scheme_prefix = "mn"
             logger.info("%s: template element (%s)", log_prefix, ph_elems[0].get("type"))
+            bold = scheme_prefix == "mj" and theme_info.title_bold
             for prop_elem in xpath_elements(sp_elem, "p:txBody//a:defRPr"):
-                _update_paragraph_style(prop_elem, theme_info, scheme_prefix=scheme_prefix)
+                _update_paragraph_style(prop_elem, theme_info, scheme_prefix=scheme_prefix, bold=bold)
             for prop_elem in xpath_elements(sp_elem, "p:txBody//a:rPr"):
-                _update_paragraph_style(prop_elem, theme_info, scheme_prefix=scheme_prefix)
+                _update_paragraph_style(prop_elem, theme_info, scheme_prefix=scheme_prefix, bold=bold)
             for prop_elem in xpath_elements(sp_elem, "p:txBody//a:endParaRPr"):
-                _update_paragraph_style(prop_elem, theme_info, scheme_prefix=scheme_prefix)
+                _update_paragraph_style(prop_elem, theme_info, scheme_prefix=scheme_prefix, bold=bold)
             if theme_info.body_first_level_style is not None:
                 for prop_elem in xpath_elements(sp_elem, "//a:lvl1pPr//a:defRPr"):
                     _update_first_level_bullet_style(prop_elem, theme_info)
