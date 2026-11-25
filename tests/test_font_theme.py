@@ -33,6 +33,25 @@ def test_build_font_theme_xml(make_theme: MakeTheme) -> None:
     ]
 
 
+def test_build_font_theme_xml_numbered_weight_families(make_theme: MakeTheme) -> None:
+    """The theme fonts of a numbered-weight family must name the regular weight explicitly."""
+    theme_info = make_theme(
+        major_font_latin="Paperlogy",
+        major_font_hangul="Paperlogy",
+        major_font_symbol="Paperlogy",
+        minor_font_latin="Freesentation 4 Regular",
+        minor_font_hangul="Pretendard",
+    )
+    root_elem = etree.fromstring(build_font_theme_xml(theme_info, "테마"))
+    assert [e.get("typeface") for e in xpath_elements(root_elem, "a:majorFont/*")] == ["Paperlogy 4 Regular"] * 4
+    assert [e.get("typeface") for e in xpath_elements(root_elem, "a:minorFont/*")] == [
+        "Freesentation 4 Regular",
+        "Pretendard",
+        "Pretendard",
+        "MIN-SYM",
+    ]
+
+
 @pytest.mark.parametrize("name", ["My Theme", "나의 테마", "  padded  ", "a.b", "x" * 100])
 def test_validate_font_theme_name_accepts(name: str) -> None:
     assert validate_font_theme_name(name) == name.strip()
