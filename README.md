@@ -37,6 +37,9 @@ since a theme font reference cannot carry them, they are replaced with the theme
 by the same suffixes, such as "Pretendard Black" or "Pretendard Bold Italic".  This also applies to
 the monospace and symbol fonts and to the theme's `bodyFirstLevelStyle`, which is only applied to
 the first-level body text without an explicit weight.
+The families naming their weights with a numeric prefix (see `numbered_weight_fonts` in
+`pptx_tool/fix.py`), such as Paperlogy and Freesentation, get the prefix for every weight including
+the regular one, such as "Paperlogy 4 Regular" or "Paperlogy 6 SemiBold".
 Note that the target font family must provide the variant for it to be rendered.
 
 By default, the text objects using a known monospace font (see `known_monospace_fonts`

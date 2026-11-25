@@ -69,10 +69,56 @@ known_monospace_fonts: Final = {
 
 preservable_typeface_tags: Final = frozenset({"latin", "ea", "cs", "sym", "font"})
 
+# The families naming every weight with its numeric weight class (CSS weight / 100) as a prefix,
+# such as "Paperlogy 4 Regular" and "Paperlogy 7 Bold".
+numbered_weight_fonts: Final = {
+    "paperlogy",
+    "freesentation",
+}
+
+# The canonical weight names of the numbered-weight families, indexed by the numeric prefix.
+_numbered_weight_names: Final = {
+    1: "Thin",
+    2: "ExtraLight",
+    3: "Light",
+    4: "Regular",
+    5: "Medium",
+    6: "SemiBold",
+    7: "Bold",
+    8: "ExtraBold",
+    9: "Black",
+}
+
+# The numeric weight classes of the weight names parsed by _split_font_name(), using the nearest one if not exact.
+_weight_numbers: Final = {
+    "thin": 1,
+    "extrathin": 1,
+    "ultrathin": 1,
+    "hairline": 1,
+    "extralight": 2,
+    "ultralight": 2,
+    "light": 3,
+    "semilight": 3,
+    "demilight": 3,
+    "regular": 4,
+    "normal": 4,
+    "medium": 5,
+    "semibold": 6,
+    "demibold": 6,
+    "bold": 7,
+    "extrabold": 8,
+    "ultrabold": 8,
+    "black": 9,
+    "heavy": 9,
+    "extrablack": 9,
+    "ultrablack": 9,
+}
+
 # The weight and slope suffixes of a typeface name such as "Pretendard ExtraBold" or "Segoe UI Semi Bold Italic".
+# The weight may have a numeric prefix such as "Paperlogy 7 Bold".
 # "Book" is left out because it is a part of family names like "Franklin Gothic Book".
 _variant_suffix_pattern: Final = re.compile(
-    r"(?:\s+(?:(?P<prefix>extra|ultra|semi|demi)[\s-]?)?"
+    r"(?:\s+(?:[1-9]\s*)?(?:(?P<prefix>extra|ultra|semi|demi)[\s-]?)?"
     r"(?P<weight>thin|hairline|light|regular|normal|medium|bold|black|heavy))?"
     r"(?:\s+(?P<slope>italic|oblique))?$",
     re.IGNORECASE,
@@ -110,16 +156,20 @@ def _print_font_scheme(font_scheme: etree._Element, indent: str = "") -> None:
 def _fill_font_scheme(target_elem: etree._Element, theme_info: Theme) -> None:
     major_font_elem = etree.Element(etree.QName(xmlns["a"], "majorFont"))
     major_font_elem.append(
-        etree.Element(etree.QName(xmlns["a"], "latin"), attrib={"typeface": theme_info.major_font_latin})
+        etree.Element(
+            etree.QName(xmlns["a"], "latin"), attrib={"typeface": _theme_typeface(theme_info.major_font_latin)}
+        )
     )
     major_font_elem.append(
-        etree.Element(etree.QName(xmlns["a"], "ea"), attrib={"typeface": theme_info.major_font_hangul})
+        etree.Element(etree.QName(xmlns["a"], "ea"), attrib={"typeface": _theme_typeface(theme_info.major_font_hangul)})
     )
     major_font_elem.append(
-        etree.Element(etree.QName(xmlns["a"], "cs"), attrib={"typeface": theme_info.major_font_hangul})
+        etree.Element(etree.QName(xmlns["a"], "cs"), attrib={"typeface": _theme_typeface(theme_info.major_font_hangul)})
     )
     major_font_elem.append(
-        etree.Element(etree.QName(xmlns["a"], "sym"), attrib={"typeface": theme_info.major_font_symbol})
+        etree.Element(
+            etree.QName(xmlns["a"], "sym"), attrib={"typeface": _theme_typeface(theme_info.major_font_symbol)}
+        )
     )
     # major_font_elem.append(
     #     etree.Element(
@@ -129,16 +179,20 @@ def _fill_font_scheme(target_elem: etree._Element, theme_info: Theme) -> None:
     # )
     minor_font_elem = etree.Element(etree.QName(xmlns["a"], "minorFont"))
     minor_font_elem.append(
-        etree.Element(etree.QName(xmlns["a"], "latin"), attrib={"typeface": theme_info.minor_font_latin})
+        etree.Element(
+            etree.QName(xmlns["a"], "latin"), attrib={"typeface": _theme_typeface(theme_info.minor_font_latin)}
+        )
     )
     minor_font_elem.append(
-        etree.Element(etree.QName(xmlns["a"], "ea"), attrib={"typeface": theme_info.minor_font_hangul})
+        etree.Element(etree.QName(xmlns["a"], "ea"), attrib={"typeface": _theme_typeface(theme_info.minor_font_hangul)})
     )
     minor_font_elem.append(
-        etree.Element(etree.QName(xmlns["a"], "cs"), attrib={"typeface": theme_info.minor_font_hangul})
+        etree.Element(etree.QName(xmlns["a"], "cs"), attrib={"typeface": _theme_typeface(theme_info.minor_font_hangul)})
     )
     minor_font_elem.append(
-        etree.Element(etree.QName(xmlns["a"], "sym"), attrib={"typeface": theme_info.minor_font_symbol})
+        etree.Element(
+            etree.QName(xmlns["a"], "sym"), attrib={"typeface": _theme_typeface(theme_info.minor_font_symbol)}
+        )
     )
     # minor_font_elem.append(
     #     etree.Element(
@@ -325,14 +379,25 @@ def _with_variant(typeface: str, variant: FontName) -> str:
     """
     Apply the weight and slope of the given variant to the typeface name, replacing its own ones.
 
-    The typeface name is kept as-is when the variant has neither a weight nor a slope.
+    The typeface name is kept as-is when the variant has neither a weight nor a slope,
+    except for the numbered-weight families which always get the numeric prefix, even for the regular weight.
     """
-    if not variant.has_variant:
-        return typeface
     font_name = _split_font_name(typeface)
+    numbered = font_name.family.lower() in numbered_weight_fonts
+    if not variant.has_variant and not numbered:
+        return typeface
     weight = variant.weight or font_name.weight
     slope = variant.slope or font_name.slope
+    if numbered:
+        number = _weight_numbers.get(re.sub(r"[\s-]", "", (weight or "regular").lower()))
+        if number is not None:
+            weight = f"{number} {_numbered_weight_names[number]}"
     return " ".join(part for part in (font_name.family, weight, slope) if part)
+
+
+def _theme_typeface(typeface: str) -> str:
+    """Return the typeface name to use for a theme font, naming the regular weight of numbered-weight families."""
+    return _with_variant(typeface, FontName(""))
 
 
 def _match_monospace_font(typeface: str | None) -> bool:

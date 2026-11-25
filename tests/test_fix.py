@@ -13,6 +13,7 @@ from pptx_tool.fix import (
     _split_font_name,
     _update_first_level_bullet_style,
     _update_paragraph_style,
+    _with_variant,
     fix_theme_font,
     local_tag,
     normalize_chart_fonts,
@@ -71,7 +72,12 @@ def test_match_monospace_font(typeface: str | None, expected: bool) -> None:
         ("Segoe UI Semi Bold", FontName("Segoe UI", "SemiBold")),
         ("Noto Sans KR Extra-Light", FontName("Noto Sans KR", "ExtraLight")),
         ("나눔스퀘어 ExtraBold", FontName("나눔스퀘어", "ExtraBold")),
-        ("Paperlogy 7 Bold", FontName("Paperlogy 7", "Bold")),
+        ("Paperlogy 7 Bold", FontName("Paperlogy", "Bold")),
+        ("Paperlogy 5 Medium", FontName("Paperlogy", "Medium")),
+        ("Freesentation 2 ExtraLight", FontName("Freesentation", "ExtraLight")),
+        ("Paperlogy 4 Regular", FontName("Paperlogy")),
+        ("Paperlogy 6SemiBold", FontName("Paperlogy", "SemiBold")),
+        ("Windows 7", FontName("Windows 7")),
         ("Arial Black", FontName("Arial", "Black")),
         ("Pretendard Medium", FontName("Pretendard", "Medium")),
         ("Pretendard Thin", FontName("Pretendard", "Thin")),
@@ -92,6 +98,30 @@ def test_match_monospace_font(typeface: str | None, expected: bool) -> None:
 )
 def test_split_font_name(typeface: str | None, expected: FontName) -> None:
     assert _split_font_name(typeface) == expected
+
+
+@pytest.mark.parametrize(
+    "typeface,variant,expected",
+    [
+        # Families naming every weight with a numeric prefix, including the regular one.
+        ("Paperlogy", FontName(""), "Paperlogy 4 Regular"),
+        ("Paperlogy", FontName("", "Medium"), "Paperlogy 5 Medium"),
+        ("Paperlogy", FontName("", "SemiBold"), "Paperlogy 6 SemiBold"),
+        ("Paperlogy", FontName("", "Heavy"), "Paperlogy 9 Black"),
+        ("Paperlogy 7 Bold", FontName(""), "Paperlogy 7 Bold"),
+        ("Paperlogy 7 Bold", FontName("", "Light"), "Paperlogy 3 Light"),
+        ("Paperlogy 4 Regular", FontName(""), "Paperlogy 4 Regular"),
+        ("freesentation", FontName("", "Thin"), "freesentation 1 Thin"),
+        ("Freesentation", FontName("", "ExtraLight"), "Freesentation 2 ExtraLight"),
+        ("Freesentation", FontName("", "ExtraBold"), "Freesentation 8 ExtraBold"),
+        # Other families keep the plain weight names.
+        ("Pretendard", FontName(""), "Pretendard"),
+        ("Pretendard", FontName("", "Medium"), "Pretendard Medium"),
+        ("나눔스퀘어 ExtraBold", FontName("", "Light"), "나눔스퀘어 Light"),
+    ],
+)
+def test_with_variant(typeface: str, variant: FontName, expected: str) -> None:
+    assert _with_variant(typeface, variant) == expected
 
 
 @pytest.mark.parametrize(
@@ -527,6 +557,26 @@ def test_master_body_style_preserves_first_level_weight(tmp_path: Path, make_the
     root_elem = etree.parse(master_path)
     typefaces = [elem.get("typeface") for elem in xpath_elements(root_elem, "//a:latin | //a:ea")]
     assert typefaces == ["MIN-LT Medium", "MIN-EA SemiBold", "MIN-LT Light", "+mn-ea"]
+
+
+def test_numbered_weight_theme_fonts(parse_fragment: ParseFragment, make_theme: MakeTheme) -> None:
+    """Weights of a numbered-weight family must be named with the numeric prefix."""
+    theme_info = make_theme(
+        major_font_latin="Paperlogy",
+        major_font_hangul="Paperlogy",
+        minor_font_latin="Freesentation",
+        minor_font_hangul="Freesentation",
+        body_first_level_style="SemiBold",
+    )
+    prop_elem = parse_fragment(
+        '<a:rPr><a:latin typeface="Pretendard Light"/><a:ea typeface="Paperlogy 5 Medium"/>'
+        '<a:cs typeface="Paperlogy 4 Regular"/></a:rPr>'
+    )
+    _update_paragraph_style(prop_elem, theme_info, scheme_prefix="mj")
+    assert [elem.get("typeface") for elem in prop_elem] == ["Paperlogy 3 Light", "Paperlogy 5 Medium", "+mj-cs"]
+    prop_elem = parse_fragment('<a:defRPr><a:latin typeface="+mn-lt"/><a:ea typeface="굴림"/></a:defRPr>')
+    _update_first_level_bullet_style(prop_elem, theme_info)
+    assert [elem.get("typeface") for elem in prop_elem] == ["Freesentation 6 SemiBold", "Freesentation 6 SemiBold"]
 
 
 @pytest.mark.parametrize("preserve_mono,expected_mono", [(False, "MONO-LT"), (True, "Consolas")])
