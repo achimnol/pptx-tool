@@ -433,6 +433,22 @@ def _is_numbered_weight_font(typeface: str | None) -> bool:
     return _split_font_name(typeface).family.lower() in numbered_weight_fonts
 
 
+def _has_numbered_weight_title_fonts(prop_elem: etree._Element, theme_info: Theme) -> bool:
+    """
+    Check if all the title typefaces of the text property element are of the numbered-weight families,
+    taking the major theme fonts for the missing typeface elements inherited from the master title style.
+    """
+    for elem_name, family in (
+        ("latin", theme_info.major_font_latin),
+        ("ea", theme_info.major_font_hangul),
+        ("cs", theme_info.major_font_hangul),
+    ):
+        elems = xpath_elements(prop_elem, f"a:{elem_name}")
+        if not _is_numbered_weight_font(elems[0].get("typeface") if elems else family):
+            return False
+    return True
+
+
 def _insert_typeface_elem(prop_elem: etree._Element, elem_name: str, typeface: str) -> None:
     """Insert a typeface child element into the text property element, keeping the schema order."""
     following = _typeface_elem_order[_typeface_elem_order.index(elem_name) + 1 :]
@@ -450,9 +466,10 @@ def _update_paragraph_style(
     """
     Replace the typefaces of the text property element with the theme fonts.
 
-    If *bold* is set, the typefaces of the numbered-weight families are named with the bold weight
+    If *bold* is set for the title text, the typefaces of the numbered-weight families are named with the bold weight
     unless they have an explicit weight or the element is explicitly not bold,
     because their weights are separate font families which the bold attribute cannot select.
+    The explicit bold attribute is also removed if all the typefaces are of the numbered-weight families.
     """
     if theme_info.preserve_mono and _has_monospace_font(prop_elem):
         return
@@ -502,6 +519,9 @@ def _update_paragraph_style(
                 prop_elem.remove(elem)
             case _:
                 pass
+    if bold and prop_elem.get("b") == "1" and _has_numbered_weight_title_fonts(prop_elem, theme_info):
+        # The bold attribute would synthesize a bolder style over the explicit weights of numbered-weight families.
+        del prop_elem.attrib["b"]
 
 
 def _update_first_level_bullet_style(prop_elem: etree._Element, theme_info: Theme) -> None:
@@ -556,16 +576,12 @@ def normalize_master_fonts(
                 ):
                     if _is_numbered_weight_font(family) and not xpath_elements(prop_elem, f"a:{elem_name}"):
                         _insert_typeface_elem(prop_elem, elem_name, f"+mj-{style_typeface_map[elem_name]}")
-            _update_paragraph_style(prop_elem, theme_info, scheme_prefix="mj", bold=theme_info.title_bold)
-            typeface_elems = [elem for elem in prop_elem if local_tag(elem) in ("latin", "ea", "cs")]
-            # The bold attribute would synthesize a bolder style over the explicit weights of numbered-weight families.
-            explicit_weights = bool(typeface_elems) and all(
-                _is_numbered_weight_font(elem.get("typeface")) for elem in typeface_elems
-            )
-            if theme_info.title_bold and not explicit_weights:
-                prop_elem.set("b", "1")
-            elif "b" in prop_elem.attrib:
+            # The title bold policy overrides the existing bold attribute.
+            if "b" in prop_elem.attrib:
                 del prop_elem.attrib["b"]
+            _update_paragraph_style(prop_elem, theme_info, scheme_prefix="mj", bold=theme_info.title_bold)
+            if theme_info.title_bold and not _has_numbered_weight_title_fonts(prop_elem, theme_info):
+                prop_elem.set("b", "1")
         for prop_elem in xpath_elements(root_elem, "//p:bodyStyle//a:defRPr"):
             _update_paragraph_style(prop_elem, theme_info)
         for prop_elem in xpath_elements(root_elem, "//p:otherStyle//a:defRPr"):

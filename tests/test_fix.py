@@ -550,6 +550,52 @@ def test_normalize_slide_font_title_bold_numbered_weight(make_theme: MakeTheme) 
     ]
 
 
+@pytest.mark.parametrize(
+    "major_font,ph_type,run,expected_b",
+    [
+        # The inherited title fonts already have the bold weight.
+        ("Paperlogy", "title", '<a:rPr b="1"/>', None),
+        ("Paperlogy", "title", '<a:rPr b="1"><a:latin typeface="Pretendard"/></a:rPr>', None),
+        ("Paperlogy", "title", '<a:rPr b="1"><a:latin typeface="Paperlogy 3 Light"/></a:rPr>', None),
+        ("Paperlogy", "title", '<a:endParaRPr b="1"/>', None),
+        # A non-numbered-weight typeface still needs the bold attribute.
+        ("Paperlogy", "title", '<a:rPr b="1"><a:latin typeface="Consolas"/></a:rPr>', "1"),
+        ("Pretendard", "title", '<a:rPr b="1"/>', "1"),
+        # Only the title placeholders are affected.
+        ("Paperlogy", "body", '<a:rPr b="1"/>', "1"),
+        ("Paperlogy", "title", '<a:rPr b="0"/>', "0"),
+    ],
+)
+def test_normalize_slide_font_title_drops_synthesized_bold(
+    make_theme: MakeTheme, major_font: str, ph_type: str, run: str, expected_b: str | None
+) -> None:
+    root_elem = _parse_slide(
+        f'<p:sp><p:nvSpPr><p:nvPr><p:ph type="{ph_type}"/></p:nvPr></p:nvSpPr><p:txBody><a:p>'
+        f"<a:r>{run}</a:r>"
+        "</a:p></p:txBody></p:sp>"
+    )
+    theme_info = make_theme(
+        major_font_latin=major_font,
+        major_font_hangul=major_font,
+        minor_font_latin=major_font,
+        minor_font_hangul=major_font,
+        title_bold=True,
+    )
+    _normalize_slide_font(root_elem, theme_info, "slide")
+    assert xpath_elements(root_elem, "//a:r/*")[0].get("b") == expected_b
+
+
+def test_normalize_slide_font_title_keeps_bold_without_title_bold(make_theme: MakeTheme) -> None:
+    root_elem = _parse_slide(
+        '<p:sp><p:nvSpPr><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr><p:txBody><a:p>'
+        '<a:r><a:rPr b="1"/></a:r>'
+        "</a:p></p:txBody></p:sp>"
+    )
+    theme_info = make_theme(major_font_latin="Paperlogy", major_font_hangul="Paperlogy", title_bold=False)
+    _normalize_slide_font(root_elem, theme_info, "slide")
+    assert xpath_elements(root_elem, "//a:rPr")[0].get("b") == "1"
+
+
 @pytest.mark.parametrize("ph_type,expected", [("title", "+mj-lt"), ("body", "+mn-lt")])
 def test_normalize_slide_font_placeholder_branch(make_theme: MakeTheme, ph_type: str, expected: str) -> None:
     """A placeholder shape picks the major/minor scheme and also rewrites its defRPr."""
